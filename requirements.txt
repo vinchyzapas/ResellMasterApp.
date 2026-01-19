@@ -4,4 +4,7 @@ pdfplumber
 easyocr
 opencv-python-headless
 Pillow
+
 numpy
+gspread
+oauth2client
