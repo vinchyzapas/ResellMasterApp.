@@ -1,5 +1,5 @@
 
-  import streamlit as st
+import streamlit as st
 import pandas as pd
 from datetime import datetime
 import numpy as np
@@ -156,3 +156,85 @@ if op == "👟 Nuevo Producto":
         if st.form_submit_button("GUARDAR EN STOCK", use_container_width=True):
             if not marca_final or not modelo: 
                 st.error("⚠️ Falta poner la Marca o el Modelo")
+            else:
+                nid = 1 if df.empty else df['ID'].max()+1
+                
+                # Normalizamos (Ponemos mayúscula inicial)
+                marca_final = str(marca_final).strip().title()
+                tienda_final = str(tienda_final).strip().title()
+                
+                new = {"ID":nid, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, 
+                       "Marca":marca_final, "Modelo":modelo, "Talla":talla, 
+                       "Tienda Origen":tienda_final, "Plataforma Venta":"", "Cuenta Venta":"", 
+                       "Precio Compra":precio, "Precio Venta":0.0, "Estado":"En Stock", 
+                       "Ganancia Neta":0.0, "ROI %":0.0}
+                
+                df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
+                guardar_datos(df)
+                st.session_state['limpiar']=True; st.session_state['ok']=True; st.rerun()
+
+# ---------------------------------------------------------
+# 2. VENDER
+# ---------------------------------------------------------
+elif op == "💸 Vender":
+    st.title("💸 Vender")
+    dfs = df[df['Estado']=='En Stock'].copy()
+    if dfs.empty: st.warning("No tienes stock.")
+    else:
+        opciones = ["Seleccionar..."] + dfs.apply(lambda x: f"ID:{x['ID']} | {x['Marca']} {x['Modelo']} ({x['Talla']})", axis=1).tolist()
+        sel = st.selectbox("Busca lo que vas a vender:", opciones)
+        
+        if sel != "Seleccionar...":
+            ids = int(float(sel.split(" |")[0].replace("ID:","")))
+            row = df[df['ID']==ids].iloc[0]
+            st.info(f"VENDIENDO: **{row['Marca']} {row['Modelo']}**")
+            with st.form("fv"):
+                pv=st.number_input("Precio Venta €", min_value=0.0, step=0.01)
+                c3,c4=st.columns(2)
+                plat=c3.selectbox("Plataforma",["Vinted","Wallapop","StockX","Otro"]); cta=c4.text_input("Cuenta Venta")
+                if st.form_submit_button("CONFIRMAR VENTA", use_container_width=True):
+                    idx=df.index[df['ID']==ids][0]
+                    g=pv-row['Precio Compra']
+                    df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=pv; df.at[idx,'Plataforma Venta']=plat; df.at[idx,'Cuenta Venta']=cta; df.at[idx,'Ganancia Neta']=g
+                    coste = row['Precio Compra']; df.at[idx,'ROI %']=(g/coste*100) if coste > 0 else 0
+                    guardar_datos(df); st.balloons(); st.success("¡Vendido!"); st.rerun()
+
+# ---------------------------------------------------------
+# 3. HISTORIAL (BORRADO FÁCIL)
+# ---------------------------------------------------------
+elif op == "📦 Historial":
+    st.title("📦 Historial")
+    
+    # --- ZONA BORRADO ---
+    with st.expander("🗑️ ELIMINAR UN PRODUCTO"):
+        st.write("Selecciona el ID que quieres borrar:")
+        lista_borrar = ["- Elegir -"] + df.apply(lambda x: f"ID:{x['ID']} | {x['Marca']} {x['Modelo']}", axis=1).tolist()
+        seleccion_borrar = st.selectbox("Buscar zapatilla:", lista_borrar)
+        
+        if seleccion_borrar != "- Elegir -":
+            id_b = int(seleccion_borrar.split(" |")[0].replace("ID:", ""))
+            if st.button(f"🗑️ BORRAR ID {id_b}", type="primary"):
+                df_nuevo = df[df['ID'] != id_b]
+                guardar_datos(df_nuevo)
+                st.success(f"ID {id_b} eliminado."); st.rerun()
+
+    # --- TABLA ---
+    col_config = {"Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"), "Precio Compra": st.column_config.NumberColumn(format="%.2f €"), "Precio Venta": st.column_config.NumberColumn(format="%.2f €"), "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €"), "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"]), "ID": st.column_config.NumberColumn(disabled=True)}
+    df_editado = st.data_editor(df, column_config=col_config, hide_index=True, num_rows="fixed", use_container_width=True)
+    if not df.equals(df_editado):
+        df_editado['Ganancia Neta'] = df_editado['Precio Venta'] - df_editado['Precio Compra']
+        guardar_datos(df_editado); st.toast("✅ Actualizado"); st.rerun()
+
+# ---------------------------------------------------------
+# 4. FINANZAS
+# ---------------------------------------------------------
+elif op == "📊 Finanzas":
+    st.title("📊 Finanzas")
+    if not df.empty:
+        sold=df[df['Estado']=='Vendido']
+        k1,k2=st.columns(2)
+        k1.metric("Beneficio Neto", f"{sold['Ganancia Neta'].sum():.2f} €")
+        k2.metric("Gasto Stock", f"{df['Precio Compra'].sum():.2f} €")
+        st.divider()
+        st.subheader("Gasto por Tienda"); st.bar_chart(df.groupby('Tienda Origen')['Precio Compra'].sum())
+        st.subheader("Beneficio por Plataforma"); st.bar_chart(sold.groupby('Plataforma Venta')['Ganancia Neta'].sum())
