@@ -4,15 +4,15 @@ import pdfplumber
 import easyocr
 import re
 from datetime import datetime
-from PIL import Image
+from PIL import Image, ImageOps, ImageEnhance
 import numpy as np
 import ssl
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from pyzbar.pyzbar import decode # LIBRERÍA NUEVA PARA CÓDIGOS DE BARRAS
+from pyzbar.pyzbar import decode
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Resell Master V15", layout="wide", page_icon="🦓")
+st.set_page_config(page_title="Resell Master V16", layout="wide", page_icon="👟")
 
 # --- CONEXIÓN GOOGLE SHEETS ---
 def conectar_sheets():
@@ -27,7 +27,6 @@ def conectar_sheets():
 
 # --- CARGAR DATOS ---
 def cargar_datos():
-    # AÑADIMOS COLUMNA 'Codigo Barras'
     columnas = ["ID", "Fecha Compra", "Fecha Venta", "Marca", "Modelo", "Talla", "Codigo Barras", 
                 "Tienda Origen", "Plataforma Venta", "Cuenta Venta", "Precio Compra", 
                 "Precio Venta", "Gastos Extra", "Estado", "Ganancia Neta", "ROI %", "Ruta Archivo"]
@@ -44,7 +43,6 @@ def cargar_datos():
                 df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
                 df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
                 df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
-                # El código de barras debe ser texto para que no pierda ceros
                 df['Codigo Barras'] = df['Codigo Barras'].astype(str).replace('nan', '')
                 return df[columnas]
         except: pass
@@ -62,123 +60,141 @@ def guardar_datos(df):
         sheet.update([df_save.columns.values.tolist()] + df_save.values.tolist())
 
 # --- GESTIÓN DE ESTADO ---
-keys_form = ['k_marca', 'k_modelo', 'k_tienda', 'k_talla', 'k_precio', 'k_barras'] # Añadido k_barras
+keys_form = ['k_marca', 'k_modelo', 'k_tienda', 'k_talla', 'k_precio', 'k_barras']
 if 'limpiar' in st.session_state and st.session_state['limpiar']:
     for k in keys_form: st.session_state[k] = 0.0 if 'precio' in k else ""
     st.session_state['limpiar'] = False
 for k in keys_form:
     if k not in st.session_state: st.session_state[k] = 0.0 if 'precio' in k else ""
 
-# --- OCR Y LECTOR DE BARRAS ---
+# --- OCR ---
 @st.cache_resource
 def cargar_ocr(): return easyocr.Reader(['es','en'])
 try: reader = cargar_ocr()
 except: reader = None
 
+def mejorar_imagen(img):
+    """Convierte a blanco y negro y aumenta contraste para leer mejor"""
+    img = ImageOps.grayscale(img)
+    enhancer = ImageEnhance.Contrast(img)
+    img = enhancer.enhance(2.0) # Doble de contraste
+    return img
+
 def procesar_imagen_completa(file):
-    """
-    Esta función hace 2 cosas:
-    1. Lee el texto (OCR)
-    2. Busca códigos de barras en la imagen
-    """
     img = Image.open(file)
-    img_np = np.array(img)
     
-    # 1. BUSCAR CÓDIGO DE BARRAS
+    # 1. BUSCAR CÓDIGO DE BARRAS / QR (Antes de procesar la imagen)
     codigo_barras = ""
-    codigos_encontrados = decode(img) # Escanea la imagen buscando barras
+    codigos_encontrados = decode(img) 
     if codigos_encontrados:
-        # Cogemos el primero que encuentre
         codigo_barras = codigos_encontrados[0].data.decode("utf-8")
     
-    # 2. LEER TEXTO (OCR)
+    # 2. MEJORAR IMAGEN PARA TEXTO
+    img_procesada = mejorar_imagen(img)
+    img_np = np.array(img_procesada)
+    
+    # 3. LEER TEXTO (OCR)
     texto_ocr = ""
+    texto_lista = []
     if reader:
-        texto_ocr = "\n".join(reader.readtext(img_np, detail=0))
+        # detail=0 da solo texto, pero queremos las lineas separadas
+        texto_lista = reader.readtext(img_np, detail=0)
+        texto_ocr = "\n".join(texto_lista)
         
-    return texto_ocr, codigo_barras
+    return texto_ocr, codigo_barras, texto_lista
 
-def procesar_texto(texto):
+def procesar_texto_etiqueta(texto_lista, texto_completo):
     d = {"marca":"", "modelo":"", "talla":"", "precio":0.0, "tienda":""}
-    txt = texto.upper()
-    marcas = ["NIKE", "ADIDAS", "JORDAN", "NEW BALANCE", "ASICS", "PUMA", "SALOMON", "HOKA", "VEJA", "CROCS", "ON", "ZARA", "BERSHKA", "DR MARTENS", "UGG", "THE NORTH FACE", "TIMBERLAND", "CONVERSE", "VANS"]
+    txt_upper = texto_completo.upper()
+    
+    # 1. MARCAS (Añadidas Merrell, Salomon, Asics)
+    marcas = ["MERRELL", "SALOMON", "ADIDAS", "ASICS", "NIKE", "JORDAN", "NEW BALANCE", "PUMA", "HOKA", "VEJA", "CROCS", "ON", "ZARA", "BERSHKA"]
     for m in marcas:
-        if re.search(r'\b'+re.escape(m)+r'\b', txt): 
-            d["marca"]=m.title(); txt=txt.replace(m, ""); break
-    
-    mp = re.search(r'(\d+[.,]?\d*)\s?([€]|EUR)', texto, re.IGNORECASE)
-    if mp: 
-        d["precio"] = float(mp.group(1).replace(',', '.'))
-        txt = txt.replace(mp.group(0), "") 
+        if m in txt_upper: 
+            d["marca"]=m.title()
+            break # No borramos la marca aún para ayudar al contexto
+            
+    # 2. TALLA (Lógica avanzada para etiquetas)
+    # Buscamos patrones específicos de etiquetas
+    # Patrón 1: "EUR 42" o "EUR 42.5"
+    match_eur = re.search(r'(EUR|EU)\s?(\d{2}\.?\d?)', txt_upper)
+    # Patrón 2: Adidas "F 36" (La F es Francia/Europa)
+    match_f = re.search(r'\bF\s?(\d{2}\.?\d?)', txt_upper)
+    # Patrón 3: Número suelto grande (fallback)
+    match_suelto = re.search(r'\b(3[5-9]|[4][0-9])\.?5?\b', txt_upper)
 
-    match_t = re.search(r'(TALLA|SIZE|NUMERO|UK|US|CM)\s?(\d{1,2}\.?5?|XL|L|M|S|XS)', txt)
-    if match_t: 
-        d["talla"]=match_t.group(2)
-        txt = txt.replace(match_t.group(0), "")
-    else: 
-        mts = re.search(r'\b(3[5-9]|[4][0-9])\.?5?\b', txt)
-        if mts: d["talla"]=mts.group(0); txt = txt.replace(mts.group(0), "")
+    if match_eur: d["talla"] = match_eur.group(2)
+    elif match_f: d["talla"] = match_f.group(1)
+    elif match_suelto: d["talla"] = match_suelto.group(0)
 
-    mti = re.search(r'(EN|DE|COMPRADA EN)\s+([A-Z0-9]+)', txt)
-    tiendas_comunes = ["ZALANDO", "PRIVALIA", "FOOTLOCKER", "VINTED", "WALLAPOP", "ASFAGOL", "NIKE", "ADIDAS", "SNIPES", "JD", "CORTE INGLES"]
-    for t in tiendas_comunes:
-        if t in txt: d["tienda"] = t.title(); txt = txt.replace(t, ""); break
-    if not d["tienda"] and mti: d["tienda"] = mti.group(2).title(); txt = txt.replace(mti.group(0), "")
+    # 3. MODELO (El truco de la línea más grande/limpia)
+    # Recorremos la lista de líneas que nos dio el OCR
+    posibles_modelos = []
+    palabras_prohibidas = ["EUR", "USA", "UK", "CM", "MM", "CN", "MADE IN", "FABRIQUE", "HOMMES", "MENS", "WOMENS", "UNISEX", "J03", "IG9", "ART", "H0", "4729"]
     
-    borrar = ["COMPRADA", "EN", "POR", "EUROS", "EUR", "€", "TALLA", "SIZE", "LA", "EL", "UNAS", "LOS", "ZAPATILLA", "ZAPATILLAS", "MODELO", "DE", "BOX", "ORIGINAL"]
-    for b in borrar: txt = re.sub(r'\b'+re.escape(b)+r'\b', "", txt)
-    d["modelo"] = re.sub(r'\s+', ' ', txt).strip().title()
+    for linea in texto_lista:
+        linea_up = linea.upper().strip()
+        # Si la línea es muy corta o tiene palabras técnicas, la ignoramos
+        if len(linea_up) < 4: continue
+        es_basura = False
+        for p in palabras_prohibidas:
+            if p in linea_up: es_basura = True; break
+        
+        # Si es la marca sola, también la ignoramos como modelo
+        if d["marca"].upper() == linea_up: es_basura = True
+        
+        if not es_basura:
+            posibles_modelos.append(linea_up)
+    
+    # Cogemos la primera línea válida que encontremos (suele ser el modelo en etiquetas)
+    if posibles_modelos:
+        d["modelo"] = posibles_modelos[0].title()
+
     return d
 
 # ==========================================
 # INTERFAZ
 # ==========================================
-st.sidebar.title("Menú V15")
+st.sidebar.title("Menú V16")
 op = st.sidebar.radio("Ir a:", ["👟 Nuevo Producto", "💸 Vender (Escáner)", "📦 Historial", "📊 Finanzas", "🚨 Alertas"])
 df = cargar_datos()
 
 # ---------------------------------------------------------
-# 1. NUEVO PRODUCTO (Escanea Caja Completa)
+# 1. NUEVO PRODUCTO
 # ---------------------------------------------------------
 if op == "👟 Nuevo Producto":
     st.title("👟 Nuevo Producto")
     if 'ok' in st.session_state and st.session_state['ok']:
         st.success("✅ Guardado en la nube"); st.session_state['ok']=False
 
-    st.info("📸 **Haz una foto a la ETIQUETA de la caja.** Intentaré leer Marca, Modelo, Talla y **Código de Barras**.")
+    st.info("📸 **CONSEJO:** Haz la foto **cerca** de la etiqueta. Intenta que no salga el fondo, solo la pegatina blanca.")
 
-    up = st.file_uploader("Subir Foto Caja", type=['jpg','png','jpeg'])
+    up = st.file_uploader("Foto Etiqueta", type=['jpg','png','jpeg'])
     
     if up:
-        with st.spinner("Analizando etiqueta y buscando código de barras..."):
-            txt, barras = procesar_imagen_completa(up)
+        with st.spinner("Procesando etiqueta..."):
+            txt, barras, lista_txt = procesar_imagen_completa(up)
+            d = procesar_texto_etiqueta(lista_txt, txt)
             
-            # Procesamos el texto
-            d = procesar_texto(txt)
-            
-            # Rellenamos sesión
-            st.session_state['k_marca'] = d["marca"]
-            st.session_state['k_modelo'] = d["modelo"] # El modelo saldrá de lo que lea en la etiqueta
-            st.session_state['k_talla'] = d["talla"]
-            # El precio no suele venir en la etiqueta de la caja, hay que ponerlo a mano
+            # Rellenar si está vacío
+            if not st.session_state['k_marca']: st.session_state['k_marca'] = d["marca"]
+            if not st.session_state['k_modelo']: st.session_state['k_modelo'] = d["modelo"]
+            if not st.session_state['k_talla']: st.session_state['k_talla'] = d["talla"]
             
             if barras:
                 st.session_state['k_barras'] = barras
-                st.toast(f"🦓 ¡Código de barras detectado! {barras}")
+                st.toast(f"Código detectado: {barras}")
             else:
-                st.toast("Texto leído, pero no veo código de barras.")
+                st.toast("Leído texto (Sin barras)")
 
     with st.form("fc"):
         c1,c2=st.columns([1,2]); m=c1.text_input("Marca", key="k_marca"); mod=c2.text_input("Modelo", key="k_modelo")
         c3,c4,c5=st.columns(3); td=c3.text_input("Tienda", key="k_tienda"); ta=c4.text_input("Talla", key="k_talla"); pr=c5.number_input("Precio Compra (€)", key="k_precio")
         
-        # CAMPO OCULTO/VISUAL DEL CÓDIGO DE BARRAS
-        # Lo mostramos desactivado para que sepas que está ahí, pero no hace falta tocarlo
-        barras_input = st.text_input("Código de Barras (Detectado autom.)", key="k_barras", disabled=True)
+        barras_input = st.text_input("Código Barras / QR", key="k_barras") # Ahora es editable por si quieres escanear con pistola aparte
         
         if st.form_submit_button("GUARDAR EN STOCK"):
             nid = 1 if df.empty else df['ID'].max()+1
-            # Guardamos el código de barras en la base de datos
             new = {"ID":nid, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":m, "Modelo":mod, "Talla":ta, "Codigo Barras":st.session_state['k_barras'], 
                    "Tienda Origen":td, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":pr, "Precio Venta":0.0, "Gastos Extra":0.0, 
                    "Estado":"En Stock", "Ganancia Neta":0.0, "ROI %":0.0, "Ruta Archivo":""}
@@ -187,56 +203,47 @@ if op == "👟 Nuevo Producto":
             st.session_state['limpiar']=True; st.session_state['ok']=True; st.rerun()
 
 # ---------------------------------------------------------
-# 2. VENDER (POR ESCÁNER)
+# 2. VENDER
 # ---------------------------------------------------------
 elif op == "💸 Vender (Escáner)":
-    st.title("💸 Vender por Código de Barras")
+    st.title("💸 Vender")
+    st.write("🦓 Sube foto del código o escribe el nombre:")
     
-    # Opción A: Escanear
-    st.write("🦓 **Sube foto del código de barras para encontrar la zapatilla:**")
-    scan_up = st.file_uploader("Escanear Barras", type=['jpg','png','jpeg'], key="vender_scan")
-    
+    # 1. CARGA FOTO PARA ESCANEAR
+    scan_up = st.file_uploader("Escanear Código", type=['jpg','png','jpeg'], key="vender_scan")
     zapatilla_encontrada = None
     
     if scan_up:
-        with st.spinner("Buscando en tu stock..."):
-            # Usamos una imagen temporal en memoria para decode
-            img_scan = Image.open(scan_up)
-            codigos = decode(img_scan)
-            
-            if codigos:
-                code_leido = codigos[0].data.decode("utf-8")
-                st.success(f"Leído: {code_leido}")
-                
-                # BUSCAR EN EL DATAFRAME
-                # Buscamos coincidencias en stock con ese código
-                encontrados = df[(df['Codigo Barras'] == code_leido) & (df['Estado'] == 'En Stock')]
-                
-                if not encontrados.empty:
-                    zapatilla_encontrada = encontrados.iloc[0]
-                else:
-                    st.error("❌ Código leído, pero no está en tu Stock (o ya se vendió).")
-            else:
-                st.warning("No pude leer el código. Intenta que se vea claro y plano.")
-
-    st.divider()
+        img_scan = Image.open(scan_up)
+        codigos = decode(img_scan)
+        if codigos:
+            code = codigos[0].data.decode("utf-8")
+            st.success(f"Código: {code}")
+            encontrados = df[(df['Codigo Barras'] == code) & (df['Estado'] == 'En Stock')]
+            if not encontrados.empty: zapatilla_encontrada = encontrados.iloc[0]
+            else: st.error("No encontrado en stock.")
     
-    # Opción B: Si no escanea, búsqueda manual (Fallback)
+    st.markdown("---")
+    
+    # 2. BUSCADOR MANUAL (SIEMPRE DISPONIBLE)
+    dfs = df[df['Estado']=='En Stock'].copy()
+    opciones = ["Seleccionar..."]
+    if not dfs.empty:
+        dfs['D'] = dfs.apply(lambda x: f"ID:{x['ID']} | {x['Marca']} {x['Modelo']}", axis=1)
+        opciones += dfs['D'].tolist()
+    
+    # Si el escáner encontró algo, pre-seleccionamos el índice 0 (truco visual no posible directo en selectbox, mostramos ficha directa)
+    
     if zapatilla_encontrada is None:
-        st.write("...o busca manualmente:")
-        dfs = df[df['Estado']=='En Stock'].copy()
-        if not dfs.empty:
-            dfs['D'] = dfs.apply(lambda x: f"ID:{x['ID']} | {x['Marca']} {x['Modelo']}", axis=1)
-            sel = st.selectbox("Elegir:", ["Seleccionar..."] + dfs['D'].tolist())
-            if sel and sel != "Seleccionar...":
-                ids = int(float(sel.split(" |")[0].replace("ID:","")))
-                zapatilla_encontrada = df[df['ID']==ids].iloc[0]
+        sel = st.selectbox("O busca manual:", opciones)
+        if sel and sel != "Seleccionar...":
+            ids = int(float(sel.split(" |")[0].replace("ID:","")))
+            zapatilla_encontrada = df[df['ID']==ids].iloc[0]
 
-    # FORMULARIO DE VENTA (Solo sale si encontramos zapatilla)
+    # FORMULARIO DE VENTA
     if zapatilla_encontrada is not None:
         row = zapatilla_encontrada
-        st.markdown(f"### ✅ Vendiendo: {row['Marca']} {row['Modelo']}")
-        st.markdown(f"Talla: **{row['Talla']}** | Comprado: **{row['Precio Compra']}€**")
+        st.info(f"VENDIENDO: **{row['Marca']} {row['Modelo']}** (Talla {row['Talla']})")
         
         with st.form("fv"):
             pv=st.number_input("Precio Venta €", min_value=0.0, step=0.01)
@@ -251,11 +258,9 @@ elif op == "💸 Vender (Escáner)":
                 df.at[idx,'Plataforma Venta']=plat; df.at[idx,'Cuenta Venta']=cta
                 df.at[idx,'Ganancia Neta']=g; df.at[idx,'ROI %']=(g/row['Precio Compra']*100) if row['Precio Compra']>0 else 0
                 guardar_datos(df)
-                st.balloons()
-                st.success("¡Venta Realizada!")
-                st.rerun()
+                st.balloons(); st.success("¡Venta Realizada!"); st.rerun()
 
-elif op == "📦 Historial (Editable)":
+elif op == "📦 Historial":
     st.title("Historial")
     col_config = {
         "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
