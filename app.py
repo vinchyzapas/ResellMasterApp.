@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -8,7 +7,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas V27", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V28", layout="wide", page_icon="👟")
 
 # --- 🌑 MODO OSCURO TOTAL ---
 st.markdown("""
@@ -48,31 +47,39 @@ def conectar_sheets():
         return client.open("inventario_zapatillas").sheet1
     except: return None
 
-# --- HERRAMIENTA DE REPARACIÓN INTELIGENTE ---
+# --- FUNCIONES DE LIMPIEZA SEGURA ---
+def limpiar_precio(texto):
+    if not texto: return 0.0
+    try:
+        # Quitamos símbolo € y espacios, cambiamos coma por punto
+        limpio = str(texto).replace("€", "").strip().replace(",", ".")
+        return float(limpio)
+    except: return 0.0
+
 def reparar_valor_precio(valor):
     try:
-        # 1. Convertir a número float puro
         v_str = str(valor).replace("€", "").replace(",", ".").strip()
         if not v_str: return 0.0
         v = float(v_str)
-        
-        # 2. Aplicar lógica de Vinchy (Nada vale más de 100€)
-        if v > 1000: 
-            return v / 100  # Ej: 4544 -> 45.44
-        elif v > 100: 
-            return v / 10   # Ej: 234 -> 23.4
-        else:
-            return v        # Ej: 50 -> 50
-    except:
-        return 0.0
+        # Lógica de corrección automática
+        if v > 1000: return v / 100  # 4544 -> 45.44
+        elif v > 100: return v / 10   # 234 -> 23.4
+        else: return v
+    except: return 0.0
 
 def reparar_talla(valor):
     try:
         v = str(valor).strip()
-        if v.endswith(".0"): 
-            return v.replace(".0", "") # Quita el decimal feo a las tallas
+        if v.endswith(".0"): return v.replace(".0", "")
         return v
     except: return str(valor)
+
+# Función segura para fechas (Evita el error que te dio)
+def formatear_fecha_segura(x):
+    if pd.isna(x) or x == "" or x == "NaT": return ""
+    if isinstance(x, str): return x # Si ya es texto, no lo toques
+    try: return x.strftime('%d/%m/%Y') # Si es fecha, dale formato
+    except: return str(x)
 
 # --- CARGAR DATOS ---
 @st.cache_data(ttl=10, show_spinner=False)
@@ -89,24 +96,24 @@ def cargar_datos_cacheado():
                 for c in cols: 
                     if c not in df.columns: df[c] = 0.0 if "Precio" in c else ""
                 
-                # Conversiones básicas
                 df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
+                # Convertimos fechas solo si no son nulas
                 df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
+                df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
                 
-                # Asegurar que Talla sea texto (para que no salga 42.0)
                 df['Talla'] = df['Talla'].astype(str).replace('nan', '')
-                
                 return df[cols]
         except: pass
     return pd.DataFrame(columns=cols)
 
-# --- GUARDAR ---
+# --- GUARDAR (BLINDADO) ---
 def guardar_datos(df):
     sheet = conectar_sheets()
     if sheet:
         dfs = df.copy()
-        dfs['Fecha Compra'] = dfs['Fecha Compra'].apply(lambda x: x.strftime('%d/%m/%Y') if not pd.isnull(x) else "")
-        dfs['Fecha Venta'] = dfs['Fecha Venta'].apply(lambda x: x.strftime('%d/%m/%Y') if not pd.isnull(x) else "")
+        # Usamos la función segura para evitar el error AttributeError
+        dfs['Fecha Compra'] = dfs['Fecha Compra'].apply(formatear_fecha_segura)
+        dfs['Fecha Venta'] = dfs['Fecha Venta'].apply(formatear_fecha_segura)
         dfs = dfs.fillna("")
         sheet.clear()
         sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
@@ -127,7 +134,7 @@ if st.sidebar.button("🔒 Cerrar Sesión"): st.session_state['autenticado']=Fal
 df = cargar_datos_cacheado()
 list_m, list_t = obtener_listas(df)
 
-# --- 1. NUEVO PRODUCTO ---
+# --- 1. NUEVO ---
 if op == "👟 Nuevo Producto":
     st.title("👟 Nuevo Producto")
     with st.form("fc"):
@@ -146,7 +153,7 @@ if op == "👟 Nuevo Producto":
         if st.form_submit_button("GUARDAR"):
             if not mod: st.error("Falta Modelo")
             else:
-                p = reparar_valor_precio(pr_txt) # Usamos la función de limpieza al guardar
+                p = limpiar_precio(pr_txt)
                 nid = 1 if df.empty else df['ID'].max()+1
                 new = {"ID":nid, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":mf, "Modelo":mod, "Talla":ta, "Tienda Origen":tf, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":p, "Precio Venta":0.0, "Estado":"En Stock", "Ganancia Neta":0.0}
                 df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
@@ -167,7 +174,7 @@ elif op == "💸 Vender":
             pv_txt = st.text_input("Precio Venta (€)")
             c3,c4=st.columns(2); plat=c3.selectbox("Plataforma",["Vinted","Wallapop","StockX"]); cta=c4.text_input("Cuenta")
             if st.form_submit_button("CONFIRMAR"):
-                pv = reparar_valor_precio(pv_txt)
+                pv = limpiar_precio(pv_txt)
                 idx = df.index[df['ID']==ids][0]
                 g = pv - row['Precio Compra']
                 df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=pv; df.at[idx,'Plataforma Venta']=plat; df.at[idx,'Cuenta Venta']=cta; df.at[idx,'Ganancia Neta']=g
@@ -183,34 +190,26 @@ elif op == "📦 Historial":
             idb = int(sb.split(" |")[0].replace("ID:",""))
             if st.button("BORRAR", type="primary"):
                 guardar_datos(df[df['ID']!=idb]); st.success("Borrado"); st.rerun()
-    
-    # Tabla visual
     st.dataframe(df, hide_index=True, use_container_width=True)
 
-# --- 🔧 HERRAMIENTA DE REPARACIÓN (NUEVO) ---
+# --- 🔧 REPARACIÓN ---
 elif op == "🔧 REPARAR DATOS":
-    st.title("🔧 Reparación Automática")
-    st.warning("Usa esto SOLO si ves los precios mal (ej: 4544 en vez de 45.44).")
+    st.title("🔧 Reparación")
+    st.warning("Esto arregla precios (ej: 4544 -> 45.44) y tallas (42.0 -> 42).")
     
-    st.write("Esta herramienta hará lo siguiente:")
-    st.write("- Si el precio es > 1000 (ej: 4544), lo divide entre 100 (-> 45.44)")
-    st.write("- Si el precio es > 100 (ej: 234), lo divide entre 10 (-> 23.4)")
-    st.write("- Arregla las tallas (ej: quita el .0)")
-    
-    if st.button("🚨 ARREGLAR TODOS LOS PRECIOS Y TALLAS AHORA", type="primary"):
-        # Aplicamos la lógica a toda la tabla
+    if st.button("🚨 ARREGLAR AHORA", type="primary"):
+        # Reparamos precios
         df['Precio Compra'] = df['Precio Compra'].apply(reparar_valor_precio)
         df['Precio Venta'] = df['Precio Venta'].apply(reparar_valor_precio)
         df['Talla'] = df['Talla'].apply(reparar_talla)
         
-        # Recalcular ganancias
+        # Corregimos ganancias
         df['Ganancia Neta'] = df['Precio Venta'] - df['Precio Compra']
-        # Corregir negativos en stock (si no se ha vendido, ganancia es 0)
         df.loc[df['Estado']=='En Stock', 'Ganancia Neta'] = 0.0
         
+        # Guardamos con la nueva función segura
         guardar_datos(df)
-        st.success("¡Datos reparados! Ve al historial a comprobarlo.")
-        st.cache_data.clear() # Limpiar caché para ver cambios
+        st.success("¡Reparado sin errores!"); st.cache_data.clear()
 
 # --- 4. FINANZAS ---
 elif op == "📊 Finanzas":
@@ -218,7 +217,6 @@ elif op == "📊 Finanzas":
     if not df.empty:
         s=df[df['Estado']=='Vendido']
         k1,k2=st.columns(2)
-        # Formato visual correcto
         ben = s['Ganancia Neta'].sum()
         gst = df[df['Estado']=='En Stock']['Precio Compra'].sum()
         k1.metric("Beneficio Neto", f"{ben:,.2f} €".replace(",", "@").replace(".", ",").replace("@", "."))
