@@ -12,7 +12,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from pyzbar.pyzbar import decode
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Resell Master V18", layout="wide", page_icon="📱")
+st.set_page_config(page_title="Resell Master V19", layout="wide", page_icon="👟")
 
 # --- LOGIN ---
 if 'autenticado' not in st.session_state: st.session_state['autenticado'] = False
@@ -21,20 +21,27 @@ def check_password():
     else: st.error("🚫 Incorrecto")
 
 if not st.session_state['autenticado']:
-    st.title("🔒 Acceso"); st.text_input("PIN", type="password", key="password_input", on_change=check_password); st.stop()
+    st.title("🔒 Acceso Resell Master")
+    st.text_input("Introduce PIN:", type="password", key="password_input", on_change=check_password)
+    st.stop()
 
-# --- CONEXIÓN GOOGLE ---
+# --- CONEXIÓN GOOGLE SHEETS ---
 def conectar_sheets():
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        # Usamos los secretos corregidos
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
         client = gspread.authorize(creds)
         return client.open("inventario_zapatillas").sheet1
-    except: return None
+    except Exception as e:
+        return None
 
-# --- DATOS ---
+# --- CARGAR DATOS ---
 def cargar_datos():
-    cols = ["ID", "Fecha Compra", "Fecha Venta", "Marca", "Modelo", "Talla", "Codigo Barras", "Tienda Origen", "Plataforma Venta", "Cuenta Venta", "Precio Compra", "Precio Venta", "Gastos Extra", "Estado", "Ganancia Neta", "ROI %", "Ruta Archivo"]
+    cols = ["ID", "Fecha Compra", "Fecha Venta", "Marca", "Modelo", "Talla", "Codigo Barras", 
+            "Tienda Origen", "Plataforma Venta", "Cuenta Venta", "Precio Compra", 
+            "Precio Venta", "Gastos Extra", "Estado", "Ganancia Neta", "ROI %", "Ruta Archivo"]
+    
     sheet = conectar_sheets()
     if sheet:
         try:
@@ -43,20 +50,28 @@ def cargar_datos():
                 df = pd.DataFrame(data)
                 for c in cols: 
                     if c not in df.columns: df[c] = 0.0 if "Precio" in c else ""
+                
+                df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
+                df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
                 df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
                 df['Codigo Barras'] = df['Codigo Barras'].astype(str).replace('nan', '')
                 return df[cols]
         except: pass
     return pd.DataFrame(columns=cols)
 
+# --- GUARDAR DATOS ---
 def guardar_datos(df):
     sheet = conectar_sheets()
     if sheet:
-        dfs = df.copy().fillna("")
-        dfs['Fecha Compra'] = dfs['Fecha Compra'].astype(str); dfs['Fecha Venta'] = dfs['Fecha Venta'].astype(str)
-        sheet.clear(); sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
+        dfs = df.copy()
+        # Formato fecha día/mes/año
+        dfs['Fecha Compra'] = dfs['Fecha Compra'].apply(lambda x: x.strftime('%d/%m/%Y') if not pd.isnull(x) else "")
+        dfs['Fecha Venta'] = dfs['Fecha Venta'].apply(lambda x: x.strftime('%d/%m/%Y') if not pd.isnull(x) else "")
+        dfs = dfs.fillna("")
+        sheet.clear()
+        sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
 
-# --- ESTADO ---
+# --- GESTIÓN DE ESTADO ---
 keys = ['k_marca', 'k_modelo', 'k_tienda', 'k_talla', 'k_precio', 'k_barras']
 if 'limpiar' in st.session_state and st.session_state['limpiar']:
     for k in keys: st.session_state[k] = 0.0 if 'precio' in k else ""
@@ -75,7 +90,6 @@ def procesar_imagen_completa(file):
     img = Image.open(file)
     
     # 1. REDIMENSIONAR (CRÍTICO PARA EL MÓVIL)
-    # Si la imagen es gigante (>1000px), la reducimos para no saturar la RAM
     if img.width > 1000:
         ratio = 1000 / float(img.width)
         h = int((float(img.height) * float(ratio)))
@@ -100,8 +114,7 @@ def procesar_imagen_completa(file):
     return "\n".join(txt_list), barras, txt_list
 
 def limpiar_modelo(texto):
-    # Limpia ruido del modelo detectado
-    basura = ["FOR", "TR", "MENS", "WOMENS", "SHOE", "RUNNING"]
+    basura = ["FOR", "TR", "MENS", "WOMENS", "SHOE", "RUNNING", "ORIGINALS"]
     for b in basura: texto = re.sub(r'\b'+b+r'\b', '', texto, flags=re.IGNORECASE)
     return texto.strip().title()
 
@@ -114,47 +127,47 @@ def procesar_texto_etiqueta(lista, full_txt):
     for m in marcas:
         if m in full_up: d["marca"]=m.title(); break
     
-    # TALLA (Lógica tolerante a fallos)
-    # Busca "22 5" o "42 5" que suele ser 22.5 o 42.5 mal leido
+    # TALLA (Lógica tolerante)
     match_raro = re.search(r'\b(\d{2})\s(5)\b', full_up)
     match_eur = re.search(r'(EUR|EU|F)\s?(\d{2}\.?\d?)', full_up)
     match_simple = re.search(r'\b(3[5-9]|[4][0-9])\.?5?\b', full_up)
 
     if match_eur: d["talla"] = match_eur.group(2)
-    elif match_raro: d["talla"] = f"{match_raro.group(1)}.5" # Arregla el "22 5"
+    elif match_raro: d["talla"] = f"{match_raro.group(1)}.5"
     elif match_simple: d["talla"] = match_simple.group(0)
 
-    # MODELO (Coger la primera línea larga legible)
+    # MODELO
     for linea in lista:
         l = linea.upper().strip()
         if len(l) < 4 or any(x in l for x in ["EUR","USA","UK","CM","MADE","ART","123","456"]): continue
-        if d["marca"] and d["marca"].upper() == l: continue # Es solo la marca
-        
-        # Si llegamos aquí, es un candidato a modelo (ej: GLIDE MAX)
+        if d["marca"] and d["marca"].upper() in l: continue 
         d["modelo"] = limpiar_modelo(l)
         break
-        
     return d
 
 # ==========================================
 # INTERFAZ
 # ==========================================
-st.sidebar.title("Menú V18")
-op = st.sidebar.radio("Ir a:", ["👟 Nuevo Producto", "💸 Vender", "📦 Historial", "📊 Finanzas", "🚨 Alertas"])
+st.sidebar.title("Menú V19")
+op = st.sidebar.radio("Ir a:", ["👟 Nuevo Producto", "💸 Vender", "📦 Historial (Editable)", "📊 Finanzas", "🚨 Alertas"])
 st.sidebar.divider()
-if st.sidebar.button("Salir"): st.session_state['autenticado']=False; st.rerun()
+if st.sidebar.button("🔒 Cerrar Sesión"): st.session_state['autenticado']=False; st.rerun()
 
 df = cargar_datos()
 
+# ---------------------------------------------------------
+# 1. NUEVO PRODUCTO
+# ---------------------------------------------------------
 if op == "👟 Nuevo Producto":
     st.title("👟 Nuevo Producto")
     if 'ok' in st.session_state and st.session_state['ok']: st.success("✅ Guardado"); st.session_state['ok']=False
 
-    up = st.file_uploader("Foto Etiqueta (Se reducirá autom.)", type=['jpg','png','jpeg'])
+    st.info("📸 Sube foto de la ETIQUETA de la caja.")
+    up = st.file_uploader("Foto Etiqueta", type=['jpg','png','jpeg'])
     txt_debug = ""
     
     if up:
-        with st.spinner("Procesando (Comprimiendo imagen)..."):
+        with st.spinner("Procesando..."):
             txt, barras, lista = procesar_imagen_completa(up)
             d = procesar_texto_etiqueta(lista, txt)
             txt_debug = txt
@@ -164,22 +177,23 @@ if op == "👟 Nuevo Producto":
             if not st.session_state['k_talla']: st.session_state['k_talla'] = d["talla"]
             if barras: st.session_state['k_barras'] = barras; st.toast("Código OK")
 
-    # CHIVATO SIEMPRE VISIBLE SI HAY TEXTO
     if txt_debug:
-        with st.expander("🔍 Ver lo que ha leído el robot"):
-            st.text(txt_debug)
+        with st.expander("🔍 Ver lo que ha leído el robot"): st.text(txt_debug)
 
     with st.form("fc"):
         c1,c2=st.columns([1,2]); m=c1.text_input("Marca", key="k_marca"); mod=c2.text_input("Modelo", key="k_modelo")
         c3,c4,c5=st.columns(3); td=c3.text_input("Tienda", key="k_tienda"); ta=c4.text_input("Talla", key="k_talla"); pr=c5.number_input("Precio (€)", key="k_precio")
         barras = st.text_input("Código Barras", key="k_barras")
         
-        if st.form_submit_button("GUARDAR"):
+        if st.form_submit_button("GUARDAR EN STOCK"):
             nid = 1 if df.empty else df['ID'].max()+1
             new = {"ID":nid, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":m, "Modelo":mod, "Talla":ta, "Codigo Barras":st.session_state['k_barras'], "Tienda Origen":td, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":pr, "Precio Venta":0.0, "Gastos Extra":0.0, "Estado":"En Stock", "Ganancia Neta":0.0, "ROI %":0.0, "Ruta Archivo":""}
             df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
             guardar_datos(df); st.session_state['limpiar']=True; st.session_state['ok']=True; st.rerun()
 
+# ---------------------------------------------------------
+# 2. VENDER
+# ---------------------------------------------------------
 elif op == "💸 Vender":
     st.title("💸 Vender")
     scan = st.file_uploader("Escanear Código", key="scan")
@@ -187,12 +201,8 @@ elif op == "💸 Vender":
     
     if scan:
         try:
-            # También redimensionamos aquí para que no falle al vender
             img = Image.open(scan)
-            if img.width > 1000: 
-                ratio = 1000 / float(img.width)
-                img = img.resize((1000, int(float(img.height)*ratio)), Image.Resampling.LANCZOS)
-            
+            if img.width > 1000: img = img.resize((1000, int(float(img.height)*(1000/float(img.width)))), Image.Resampling.LANCZOS)
             d = decode(img)
             if d:
                 c = d[0].data.decode("utf-8"); st.success(f"Código: {c}")
@@ -211,15 +221,27 @@ elif op == "💸 Vender":
     if zapatilla is not None:
         st.info(f"VENDIENDO: {zapatilla['Marca']} {zapatilla['Modelo']}")
         with st.form("fv"):
-            pv=st.number_input("Venta €"); c3,c4=st.columns(2); pl=c3.selectbox("Plataforma",["Vinted","Wallapop","StockX"]); cu=c4.text_input("Cuenta")
+            pv=st.number_input("Precio Venta €", min_value=0.0, step=0.01)
+            # SIN GASTOS
+            c3,c4=st.columns(2); pl=c3.selectbox("Plataforma",["Vinted","Wallapop","StockX"]); cu=c4.text_input("Cuenta")
             if st.form_submit_button("VENDER"):
                 idx=df.index[df['ID']==zapatilla['ID']][0]
                 g=pv-zapatilla['Precio Compra']
-                df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=pv; df.at[idx,'Plataforma Venta']=pl; df.at[idx,'Cuenta Venta']=cu; df.at[idx,'Ganancia Neta']=g
+                df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=pv; df.at[idx,'Gastos Extra']=0.0
+                df.at[idx,'Plataforma Venta']=pl; df.at[idx,'Cuenta Venta']=cu; df.at[idx,'Ganancia Neta']=g
                 guardar_datos(df); st.balloons(); st.success("Vendido"); st.rerun()
 
-elif op == "📦 Historial":
-    st.title("Historial"); st.data_editor(df, hide_index=True)
+# ---------------------------------------------------------
+# 3. HISTORIAL (EDITABLE)
+# ---------------------------------------------------------
+elif op == "📦 Historial (Editable)":
+    st.title("Historial")
+    col_config = {"Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"), "Precio Compra": st.column_config.NumberColumn(format="%.2f €"), "Precio Venta": st.column_config.NumberColumn(format="%.2f €"), "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €"), "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"]), "ID": st.column_config.NumberColumn(disabled=True)}
+    df_editado = st.data_editor(df, column_config=col_config, hide_index=True, num_rows="dynamic", use_container_width=True)
+    if not df.equals(df_editado):
+        # Recálculo simple sin gastos
+        df_editado['Ganancia Neta'] = df_editado['Precio Venta'] - df_editado['Precio Compra']
+        guardar_datos(df_editado); st.toast("✅ Guardado"); st.rerun()
 
 elif op == "📊 Finanzas":
     st.title("Finanzas"); s=df[df['Estado']=='Vendido']
