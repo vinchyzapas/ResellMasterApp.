@@ -7,57 +7,42 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas V32", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V33", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL (CSS AGRESIVO) ---
 st.markdown("""
 <style>
-    /* Fondo y texto general */
-    .stApp {
-        background-color: #0E1117;
-        color: white;
-    }
+    /* Fondo negro */
+    .stApp {background-color: #0E1117; color: white;}
+    section[data-testid="stSidebar"] {background-color: #000000;}
+    section[data-testid="stSidebar"] * {color: white !important;}
     
-    /* Barra lateral */
-    section[data-testid="stSidebar"] {
-        background-color: #000000;
-    }
-    section[data-testid="stSidebar"] * {
-        color: white !important;
-    }
-    
-    /* Inputs (Cajas donde escribes) */
-    div[data-baseweb="input"] > div {
+    /* Cajas de texto */
+    .stTextInput input, .stNumberInput input {
         background-color: #333333 !important;
         color: white !important;
-        border-color: #555 !important;
+        border: 1px solid #555;
     }
-    input {
+    
+    /* Desplegables */
+    div[data-baseweb="select"] > div {background-color: #333333 !important; color: white !important;}
+    
+    /* 🔴 BOTÓN ROJO FORZADO */
+    div.stButton > button:first-child {
+        background-color: #FF0000 !important;
         color: white !important;
+        font-size: 18px !important;
+        font-weight: bold !important;
+        border: 2px solid #990000 !important;
+        border-radius: 8px !important;
+        width: 100% !important;
+    }
+    div.stButton > button:hover {
+        background-color: #CC0000 !important;
+        color: #EEEEEE !important;
     }
     
-    /* --- EL BOTÓN ROJO (Selectores específicos para que funcione) --- */
-    /* Apuntamos al botón dentro del formulario */
-    button[data-testid="stFormSubmitButton"] {
-        background-color: #FF0000 !important; /* Rojo puro */
-        color: #FFFFFF !important; /* Letra blanca pura */
-        border: 2px solid #FF0000 !important;
-        font-weight: 900 !important;
-        font-size: 20px !important;
-        text-transform: uppercase;
-    }
-    
-    /* Efecto al pasar el ratón */
-    button[data-testid="stFormSubmitButton"]:hover {
-        background-color: #990000 !important; /* Rojo oscuro */
-        color: #FFFFFF !important;
-        border-color: #990000 !important;
-    }
-    
-    /* Arreglar texto de los inputs del formulario */
-    label {
-        color: white !important;
-    }
+    label {color: white !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -70,13 +55,13 @@ if 'autenticado' not in st.session_state: st.session_state['autenticado'] = Fals
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
+    st.markdown("### 🟢 Versión 33") # AQUÍ ESTÁ EL INDICADOR DE VERSIÓN
     st.write("---")
     
     with st.form("login_form"):
         st.markdown("### Introduce tu clave:")
         pin = st.text_input("PIN", type="password", label_visibility="collapsed")
-        st.write("") # Espacio
-        # Este botón debería salir ROJO con el CSS de arriba
+        st.write("") 
         submit = st.form_submit_button("ENTRAR AL SISTEMA")
         
         if submit:
@@ -98,27 +83,18 @@ def conectar_sheets():
 
 # --- CONVERSORES DE PRECIO ---
 def texto_a_numero(texto):
-    """Convierte '45,50' (texto) -> 45.50 (número) para cálculos"""
     if not texto: return 0.0
     try:
-        # Si ya es un número (int o float), lo devolvemos tal cual
-        if isinstance(texto, (int, float)):
-            return float(texto)
-        # Si es texto, limpiamos
-        limpio = str(texto).replace("€", "").strip()
-        limpio = limpio.replace(",", ".") # Coma a punto
+        if isinstance(texto, (int, float)): return float(texto)
+        limpio = str(texto).replace("€", "").strip().replace(",", ".")
         return float(limpio)
-    except:
-        return 0.0
+    except: return 0.0
 
 def numero_a_texto_bonito(valor):
-    """Convierte 45.50 (número) -> '45,50 €' (texto) para que se vea bien"""
     try:
         if valor == 0: return "0,00 €"
-        # Formato europeo: Coma decimal, punto miles
         return f"{float(valor):,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
-    except:
-        return "0,00 €"
+    except: return "0,00 €"
 
 # --- CARGAR DATOS ---
 @st.cache_data(ttl=5, show_spinner=False)
@@ -135,15 +111,15 @@ def cargar_datos_cacheado():
                 for c in cols: 
                     if c not in df.columns: df[c] = ""
                 
-                # Convertimos TODO a números reales internamente para que no fallen los cálculos
                 df['Precio Compra'] = df['Precio Compra'].apply(texto_a_numero)
                 df['Precio Venta'] = df['Precio Venta'].apply(texto_a_numero)
                 df['Ganancia Neta'] = df['Precio Venta'] - df['Precio Compra']
                 
                 df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
                 df['Talla'] = df['Talla'].astype(str).replace('nan', '')
+                df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
+                df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
                 
-                # Normalizar texto
                 if 'Marca' in df.columns: df['Marca'] = df['Marca'].astype(str).str.strip().str.title()
                 
                 return df[cols]
@@ -155,9 +131,6 @@ def guardar_datos(df):
     sheet = conectar_sheets()
     if sheet:
         dfs = df.copy()
-        
-        # Al guardar en Google Sheets, lo pasamos a formato español "45,50"
-        # para que cuando tú abras el Excel se vea bien
         dfs['Precio Compra'] = dfs['Precio Compra'].apply(lambda x: str(x).replace(".", ","))
         dfs['Precio Venta'] = dfs['Precio Venta'].apply(lambda x: str(x).replace(".", ","))
         dfs['Ganancia Neta'] = dfs['Ganancia Neta'].apply(lambda x: str(x).replace(".", ","))
@@ -203,7 +176,6 @@ if op == "👟 Nuevo Producto":
         if tf == "-": tf = ""
         
         ta = c4.text_input("Talla")
-        # Aquí escribes con coma, la función 'texto_a_numero' lo arreglará al guardar
         pr_txt = c5.text_input("Precio Compra (€)", placeholder="Ej: 45,50")
         
         if st.form_submit_button("GUARDAR EN STOCK"):
@@ -233,7 +205,9 @@ elif op == "💸 Vender":
                 pv = texto_a_numero(pv_txt)
                 idx = df.index[df['ID']==ids][0]
                 g = pv - row['Precio Compra']
-                df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=pv; df.at[idx,'Plataforma Venta']=plat; df.at[idx,'Cuenta Venta']=cta; df.at[idx,'Ganancia Neta']=g
+                coste = row['Precio Compra']
+                roi = (g/coste*100) if coste > 0 else 0
+                df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=pv; df.at[idx,'Plataforma Venta']=plat; df.at[idx,'Cuenta Venta']=cta; df.at[idx,'Ganancia Neta']=g; df.at[idx,'ROI %']=roi
                 guardar_datos(df); st.balloons(); st.success("Vendido"); st.rerun()
 
 # --- 3. HISTORIAL ---
@@ -247,17 +221,12 @@ elif op == "📦 Historial":
             if st.button("BORRAR", type="primary"):
                 guardar_datos(df[df['ID']!=idb]); st.success("Borrado"); st.rerun()
     
-    # --- VISUALIZACIÓN BONITA ---
-    # Creamos una copia solo para VER, donde convertimos los números feos a "45,50 €"
     df_visual = df.copy()
     df_visual['Precio Compra'] = df_visual['Precio Compra'].apply(numero_a_texto_bonito)
     df_visual['Precio Venta'] = df_visual['Precio Venta'].apply(numero_a_texto_bonito)
     df_visual['Ganancia Neta'] = df_visual['Ganancia Neta'].apply(numero_a_texto_bonito)
-    
-    # Formateamos fechas para verlas bien
     df_visual['Fecha Compra'] = pd.to_datetime(df_visual['Fecha Compra']).dt.strftime('%d/%m/%Y').replace("NaT", "")
     df_visual['Fecha Venta'] = pd.to_datetime(df_visual['Fecha Venta']).dt.strftime('%d/%m/%Y').replace("NaT", "")
-
     st.dataframe(df_visual, hide_index=True, use_container_width=True)
 
 # --- 4. FINANZAS ---
@@ -268,13 +237,10 @@ elif op == "📊 Finanzas":
         k1,k2=st.columns(2)
         ben = s['Ganancia Neta'].sum()
         gst = df[df['Estado']=='En Stock']['Precio Compra'].sum()
-        
         k1.metric("Beneficio Neto", numero_a_texto_bonito(ben))
         k2.metric("Gasto Total en Stock", numero_a_texto_bonito(gst))
-        
         st.divider()
         st.subheader("Gasto por Tienda")
-        # Gráfica necesita números puros, usamos df original
         st.bar_chart(df.groupby('Tienda Origen')['Precio Compra'].sum())
         st.subheader("Beneficio por Plataforma")
-        st.bar_chart(s.groupby('Plataforma Venta')['Ganancia Neta'].sum()
+        st.bar_chart(s.groupby('Plataforma Venta')['Ganancia Neta'].sum())
