@@ -8,3 +8,4 @@ Pillow
 numpy
 gspread
 oauth2client
+pyzbar
