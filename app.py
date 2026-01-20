@@ -20,6 +20,8 @@ st.markdown("""
     .stTextInput input, .stNumberInput input {color: white !important; background-color: #333333 !important;}
     .stSelectbox div[data-baseweb="select"] > div {background-color: #333333 !important; color: white !important;}
     div[data-baseweb="menu"] {background-color: #333333 !important;}
+    /* Botón de entrar grande */
+    .stButton button {width: 100%; font-weight: bold;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -27,15 +29,22 @@ st.markdown("""
 BASES_MARCAS = ["Adidas", "Nike", "Hoka", "Salomon", "Calvin Klein", "Asics", "New Balance", "Merrell"]
 BASES_TIENDAS = ["Asos", "Asphaltgold", "Privalia", "Amazon", "Sneakersnuff", "Footlocker", "Zalando", "Vinted"]
 
-# --- LOGIN ---
+# --- LOGIN CON BOTÓN ---
 if 'autenticado' not in st.session_state: st.session_state['autenticado'] = False
-def check_password():
-    if st.session_state.password_input == "1234": st.session_state['autenticado'] = True
-    else: st.error("🚫 Incorrecto")
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.text_input("Introduce PIN:", type="password", key="password_input", on_change=check_password)
+    
+    with st.form("login_form"):
+        pin_input = st.text_input("Introduce PIN:", type="password")
+        submit_button = st.form_submit_button("ENTRAR")
+        
+        if submit_button:
+            if pin_input == "1234":
+                st.session_state['autenticado'] = True
+                st.rerun()
+            else:
+                st.error("🚫 PIN Incorrecto")
     st.stop()
 
 # --- CONEXIÓN GOOGLE SHEETS ---
@@ -48,23 +57,19 @@ def conectar_sheets():
     except Exception as e:
         return None
 
-# --- LIMPIADORES (Precios y Tallas) ---
+# --- LIMPIADOR DE PRECIOS ---
 def limpiar_precio(texto):
     if not texto: return 0.0
     try:
-        # Quita € y cambia coma por punto
         limpio = str(texto).replace("€", "").strip().replace(",", ".")
         return float(limpio)
     except:
         return 0.0
 
-def limpiar_talla(texto):
-    # La talla siempre será TEXTO, pero cambiamos comas por puntos para que quede bonito
-    if not texto: return ""
-    return str(texto).replace(",", ".").strip()
-
-# --- CARGAR DATOS ---
-def cargar_datos():
+# --- CARGAR DATOS (CON CACHÉ PARA EVITAR ERROR DE CONEXIÓN) ---
+# ttl=10 significa que mantiene los datos en memoria 10 segundos antes de volver a llamar a Google
+@st.cache_data(ttl=10, show_spinner=False)
+def cargar_datos_cacheado():
     cols = ["ID", "Fecha Compra", "Fecha Venta", "Marca", "Modelo", "Talla", "Tienda Origen", 
             "Plataforma Venta", "Cuenta Venta", "Precio Compra", "Precio Venta", 
             "Estado", "Ganancia Neta", "ROI %"]
@@ -78,44 +83,35 @@ def cargar_datos():
                 for c in cols: 
                     if c not in df.columns: df[c] = 0.0 if "Precio" in c else ""
                 
-                # --- LIMPIEZA DE DATOS ---
-                # 1. Precios a números seguros
+                # Limpiezas
                 df['Precio Compra'] = pd.to_numeric(df['Precio Compra'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
                 df['Precio Venta'] = pd.to_numeric(df['Precio Venta'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
                 df['Ganancia Neta'] = pd.to_numeric(df['Ganancia Neta'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
-                
-                # 2. Talla a Texto Seguro (y unificamos coma a punto)
-                df['Talla'] = df['Talla'].astype(str).str.replace(',', '.').str.strip()
-                
-                # 3. Fechas y IDs
                 df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
                 df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
                 df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
                 
-                # 4. Textos bonitos
                 if 'Marca' in df.columns: df['Marca'] = df['Marca'].astype(str).str.strip().str.title()
                 if 'Tienda Origen' in df.columns: df['Tienda Origen'] = df['Tienda Origen'].astype(str).str.strip().str.title()
                 
-                return df[cols], True
+                return df[cols]
             else:
-                return pd.DataFrame(columns=cols), True
+                return pd.DataFrame(columns=cols)
         except: pass
-    return pd.DataFrame(columns=cols), False
+    return pd.DataFrame(columns=cols)
 
-# --- GUARDAR DATOS ---
+# --- GUARDAR DATOS (Limpia la caché para ver cambios al instante) ---
 def guardar_datos(df):
     sheet = conectar_sheets()
     if sheet:
         dfs = df.copy()
         dfs['Fecha Compra'] = dfs['Fecha Compra'].apply(lambda x: x.strftime('%d/%m/%Y') if not pd.isnull(x) else "")
         dfs['Fecha Venta'] = dfs['Fecha Venta'].apply(lambda x: x.strftime('%d/%m/%Y') if not pd.isnull(x) else "")
-        
-        # Aseguramos que la talla se guarde como TEXTO en Google Sheets (poniendo una comilla simple delante si es necesario, o solo string)
-        dfs['Talla'] = dfs['Talla'].astype(str)
-        
         dfs = dfs.fillna("")
         sheet.clear()
         sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
+        # Borramos la caché para que al recargar se vean los datos nuevos
+        st.cache_data.clear()
 
 # --- LISTAS INTELIGENTES ---
 def obtener_listas_actualizadas(df):
@@ -135,15 +131,19 @@ if 'limpiar' in st.session_state and st.session_state['limpiar']:
     st.session_state['limpiar'] = False
 
 # ==========================================
-# INTERFAZ
+# INTERFAZ PRINCIPAL
 # ==========================================
 st.sidebar.title("Menú")
 op = st.sidebar.radio("Ir a:", ["👟 Nuevo Producto", "💸 Vender", "📦 Historial", "📊 Finanzas"])
 st.sidebar.divider()
 if st.sidebar.button("🔒 Cerrar Sesión"): st.session_state['autenticado']=False; st.rerun()
 
-df, ok = cargar_datos()
-if not ok: st.error("Error de conexión"); st.stop()
+# CARGAMOS DATOS USANDO LA CACHÉ (Esto evita el error de conexión)
+df = cargar_datos_cacheado()
+# Si falla la carga (df vacío por error), intentamos reconectar
+if df.empty and not conectar_sheets():
+    st.error("Error de conexión. Intenta recargar.")
+    st.stop()
 
 mis_marcas, mis_tiendas = obtener_listas_actualizadas(df)
 
@@ -169,25 +169,14 @@ if op == "👟 Nuevo Producto":
             tf = tt if tt else ts
             if tf == "- Seleccionar -": tf = ""
 
-        # TALLA (TEXTO LIBRE)
-        ta_txt = c4.text_input("Talla", key="k_talla", placeholder="Ej: 42,5")
-        
-        # PRECIO (TEXTO LIBRE)
+        ta = c4.text_input("Talla", key="k_talla")
         pr_txt = c5.text_input("Precio Compra (€)", key="k_precio", placeholder="Ej: 50,90")
         
         if st.form_submit_button("GUARDAR", use_container_width=True):
             if not mf or not mod: st.error("⚠️ Falta datos")
             else:
-                # Limpiamos talla y precio antes de guardar
-                talla_final = limpiar_talla(ta_txt)
-                precio_final = limpiar_precio(pr_txt)
-                
                 nid = 1 if df.empty else df['ID'].max()+1
-                new = {"ID":nid, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, 
-                       "Marca":str(mf).strip().title(), "Modelo":mod, "Talla":talla_final, 
-                       "Tienda Origen":str(tf).strip().title(), "Plataforma Venta":"", "Cuenta Venta":"", 
-                       "Precio Compra":precio_final, "Precio Venta":0.0, "Estado":"En Stock", 
-                       "Ganancia Neta":0.0, "ROI %":0.0}
+                new = {"ID":nid, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":str(mf).strip().title(), "Modelo":mod, "Talla":ta, "Tienda Origen":str(tf).strip().title(), "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":limpiar_precio(pr_txt), "Precio Venta":0.0, "Estado":"En Stock", "Ganancia Neta":0.0, "ROI %":0.0}
                 df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
                 guardar_datos(df); st.session_state['limpiar']=True; st.session_state['ok']=True; st.rerun()
 
@@ -201,7 +190,7 @@ elif op == "💸 Vender":
         if sel != "Seleccionar...":
             ids = int(float(sel.split(" |")[0].replace("ID:","")))
             row = df[df['ID']==ids].iloc[0]
-            st.info(f"VENDIENDO: **{row['Marca']} {row['Modelo']}** (Talla: {row['Talla']})")
+            st.info(f"VENDIENDO: **{row['Marca']} {row['Modelo']}**")
             with st.form("fv"):
                 pv_txt = st.text_input("Precio Venta (€)", placeholder="Ej: 100,50")
                 c3,c4=st.columns(2); plat=c3.selectbox("Plataforma",["Vinted","Wallapop","StockX","Otro"]); cta=c4.text_input("Cuenta Venta")
@@ -210,7 +199,7 @@ elif op == "💸 Vender":
                     df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=pv; df.at[idx,'Plataforma Venta']=plat; df.at[idx,'Cuenta Venta']=cta; df.at[idx,'Ganancia Neta']=g
                     guardar_datos(df); st.balloons(); st.success("¡Vendido!"); st.rerun()
 
-# --- 3. HISTORIAL ---
+# --- 3. HISTORIAL (ESTABLE) ---
 elif op == "📦 Historial":
     st.title("📦 Historial")
     with st.expander("🗑️ ELIMINAR"):
@@ -220,31 +209,20 @@ elif op == "📦 Historial":
             if st.button(f"🗑️ BORRAR ID {idb}", type="primary"):
                 guardar_datos(df[df['ID'] != idb]); st.success("Borrado."); st.rerun()
 
-    col_config = {
-        "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
-        "Precio Compra": st.column_config.NumberColumn(format="%.2f €"),
-        "Precio Venta": st.column_config.NumberColumn(format="%.2f €"),
-        "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €"),
-        "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"]),
-        "ID": st.column_config.NumberColumn(disabled=True),
-        "Talla": st.column_config.TextColumn() # Talla como texto para evitar líos
-    }
-    df_ed = st.data_editor(df, column_config=col_config, hide_index=True, num_rows="fixed", use_container_width=True)
-    if not df.equals(df_ed):
-        df_ed['Ganancia Neta'] = df_ed['Precio Venta'] - df_ed['Precio Compra']
-        guardar_datos(df_ed); st.toast("✅ Actualizado"); st.rerun()
+    # Tabla sin edición directa para MAXIMA ESTABILIDAD en el móvil
+    # Si quieres editar, es mejor borrar y crear de nuevo para evitar el "refresh loop"
+    st.dataframe(df, hide_index=True, use_container_width=True)
 
 # --- 4. FINANZAS ---
 elif op == "📊 Finanzas":
     st.title("📊 Finanzas")
     if not df.empty:
         sold=df[df['Estado']=='Vendido']
+        k1,k2=st.columns(2)
         ben = sold['Ganancia Neta'].sum() if not sold.empty else 0.0
         gasto = df[df['Estado']=='En Stock']['Precio Compra'].sum() if not df.empty else 0.0
-        
-        c1, c2 = st.columns(2)
-        c1.metric("Beneficio Neto Total", f"{ben:.2f} €")
-        c2.metric("Gasto Total en Stock", f"{gasto:.2f} €")
+        k1.metric("Beneficio Neto Total", f"{ben:.2f} €")
+        k2.metric("Gasto Total en Stock", f"{gasto:.2f} €")
         st.divider()
         st.subheader("Gasto por Tienda"); st.bar_chart(df.groupby('Tienda Origen')['Precio Compra'].sum())
         st.subheader("Beneficio por Plataforma"); st.bar_chart(sold.groupby('Plataforma Venta')['Ganancia Neta'].sum())
