@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -8,43 +7,40 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas V30", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V31", layout="wide", page_icon="👟")
 
-# --- 🌑 MODO OSCURO & BOTONES ROJOS (DISEÑO) ---
+# --- 🎨 DISEÑO: MODO OSCURO Y BOTÓN ROJO OBLIGATORIO ---
 st.markdown("""
 <style>
-    /* Fondo principal negro */
-    .stApp {background-color: #0E1117; color: #FFFFFF;}
-    
-    /* Barra lateral negra */
+    /* Fondo negro */
+    .stApp {background-color: #0E1117; color: white;}
     section[data-testid="stSidebar"] {background-color: #000000;}
-    section[data-testid="stSidebar"] * {color: #FFFFFF !important;}
+    section[data-testid="stSidebar"] * {color: white !important;}
     
-    /* Inputs (Cajas de texto) gris oscuro y letra blanca */
+    /* Cajas de texto */
     .stTextInput input, .stNumberInput input {
-        color: white !important; 
         background-color: #333333 !important;
+        color: white !important;
         border: 1px solid #555;
     }
     
-    /* Selectbox (Desplegables) */
-    .stSelectbox div[data-baseweb="select"] > div {
-        background-color: #333333 !important; 
-        color: white !important;
-    }
-    div[data-baseweb="menu"] {background-color: #333333 !important;}
+    /* Desplegables */
+    div[data-baseweb="select"] > div {background-color: #333333 !important; color: white !important;}
     
-    /* --- BOTONES ROJOS --- */
-    .stButton button {
-        width: 100%; 
-        font-weight: bold;
-        background-color: #FF4B4B !important; /* Rojo */
-        color: white !important; /* Letras blancas */
-        border: none;
-    }
-    .stButton button:hover {
-        background-color: #FF0000 !important; /* Rojo más fuerte al pasar ratón */
+    /* 🔴 BOTÓN ROJO FORZADO (Estilo agresivo) */
+    div.stButton > button:first-child {
+        background-color: #FF0000 !important;
         color: white !important;
+        font-size: 18px !important;
+        font-weight: bold !important;
+        border: 2px solid #990000 !important;
+        border-radius: 8px !important;
+        padding: 10px 24px !important;
+        width: 100% !important;
+    }
+    div.stButton > button:hover {
+        background-color: #CC0000 !important;
+        color: #EEEEEE !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -58,18 +54,20 @@ if 'autenticado' not in st.session_state: st.session_state['autenticado'] = Fals
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.write("") # Espacio
-    with st.form("login_form"):
-        pin = st.text_input("PIN DE ACCESO:", type="password")
-        # Este botón ahora será ROJO con letras BLANCAS gracias al CSS de arriba
-        submit = st.form_submit_button("ENTRAR")
-        
-        if submit:
-            if pin == "1234": 
-                st.session_state['autenticado'] = True
-                st.rerun()
-            else: 
-                st.error("🚫 PIN Incorrecto")
+    st.write("---")
+    col_login, col_vacio = st.columns([1, 0.1])
+    with col_login:
+        with st.form("login_form"):
+            pin = st.text_input("PIN DE ACCESO:", type="password")
+            # Este botón ahora saldrá ROJO por el código de arriba
+            submit = st.form_submit_button("ENTRAR AL SISTEMA")
+            
+            if submit:
+                if pin == "1234": 
+                    st.session_state['autenticado'] = True
+                    st.rerun()
+                else: 
+                    st.error("🚫 PIN Incorrecto")
     st.stop()
 
 # --- CONEXIÓN ---
@@ -81,21 +79,34 @@ def conectar_sheets():
         return client.open("inventario_zapatillas").sheet1
     except: return None
 
-# --- LIMPIADOR INTELIGENTE (COMA O PUNTO) ---
-def limpiar_precio(texto):
-    if not texto: return 0.0
+# --- 🧠 ADUANA DE PRECIOS (Corrije 45,50 -> 45.50) ---
+def normalizar_precio_lectura(valor):
+    """Convierte lo que venga del Excel (texto con coma) a número real para la App"""
+    if pd.isna(valor) or valor == "":
+        return 0.0
+    
+    str_val = str(valor).replace("€", "").strip()
+    
+    # Si tiene coma, la cambiamos por punto
+    if "," in str_val:
+        str_val = str_val.replace(",", ".")
+        
     try:
-        # 1. Quitamos símbolo € y espacios
-        limpio = str(texto).replace("€", "").strip()
-        # 2. Reemplazamos coma por punto (para que Python entienda el número)
-        limpio = limpio.replace(",", ".")
-        # 3. Devolvemos número decimal
-        return float(limpio)
+        return float(str_val)
     except:
         return 0.0
 
+def normalizar_precio_escritura(valor):
+    """Convierte el número de la App a texto con coma para el Excel (Visualmente bonito)"""
+    try:
+        if valor == 0: return "0,00"
+        # Formateamos con 2 decimales y cambiamos punto por coma
+        return f"{valor:.2f}".replace(".", ",")
+    except:
+        return "0,00"
+
 # --- CARGAR DATOS ---
-@st.cache_data(ttl=10, show_spinner=False)
+@st.cache_data(ttl=5, show_spinner=False)
 def cargar_datos_cacheado():
     cols = ["ID", "Fecha Compra", "Fecha Venta", "Marca", "Modelo", "Talla", "Tienda Origen", 
             "Plataforma Venta", "Cuenta Venta", "Precio Compra", "Precio Venta", 
@@ -107,20 +118,17 @@ def cargar_datos_cacheado():
             if data:
                 df = pd.DataFrame(data)
                 for c in cols: 
-                    if c not in df.columns: df[c] = 0.0 if "Precio" in c else ""
+                    if c not in df.columns: df[c] = ""
                 
-                # --- LIMPIEZA DE LECTURA ---
-                # Convertimos precios a números para poder sumar en finanzas
-                # Esto maneja si en el Excel hay "45,50" o "45.50"
-                df['Precio Compra'] = pd.to_numeric(df['Precio Compra'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
-                df['Precio Venta'] = pd.to_numeric(df['Precio Venta'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
-                df['Ganancia Neta'] = pd.to_numeric(df['Ganancia Neta'].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
+                # --- APLICAMOS LA ADUANA DE PRECIOS AQUÍ ---
+                df['Precio Compra'] = df['Precio Compra'].apply(normalizar_precio_lectura)
+                df['Precio Venta'] = df['Precio Venta'].apply(normalizar_precio_lectura)
+                df['Ganancia Neta'] = df['Precio Venta'] - df['Precio Compra']
                 
+                # Formatos
+                df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
                 df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
                 df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
-                df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
-                
-                # TALLA: Forzamos a texto para que no ponga .0
                 df['Talla'] = df['Talla'].astype(str).replace('nan', '')
                 
                 if 'Marca' in df.columns: df['Marca'] = df['Marca'].astype(str).str.strip().str.title()
@@ -135,9 +143,16 @@ def guardar_datos(df):
     sheet = conectar_sheets()
     if sheet:
         dfs = df.copy()
-        # Fechas bonitas
+        
+        # Guardamos las fechas bonitas
         dfs['Fecha Compra'] = dfs['Fecha Compra'].apply(lambda x: x.strftime('%d/%m/%Y') if not pd.isnull(x) else "")
         dfs['Fecha Venta'] = dfs['Fecha Venta'].apply(lambda x: x.strftime('%d/%m/%Y') if not pd.isnull(x) else "")
+        
+        # --- GUARDAMOS LOS PRECIOS CON COMA PARA QUE EL EXCEL QUEDE BIEN ---
+        dfs['Precio Compra'] = dfs['Precio Compra'].apply(normalizar_precio_escritura)
+        dfs['Precio Venta'] = dfs['Precio Venta'].apply(normalizar_precio_escritura)
+        dfs['Ganancia Neta'] = dfs['Ganancia Neta'].apply(normalizar_precio_escritura)
+        
         dfs = dfs.fillna("")
         sheet.clear()
         sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
@@ -158,49 +173,33 @@ if st.sidebar.button("🔒 Cerrar Sesión"): st.session_state['autenticado']=Fal
 df = cargar_datos_cacheado()
 list_m, list_t = obtener_listas(df)
 
-# --- 1. NUEVO PRODUCTO ---
+# --- 1. NUEVO ---
 if op == "👟 Nuevo Producto":
     st.title("👟 Nuevo Producto")
-    if 'ok' in st.session_state and st.session_state['ok']: st.success("✅ Guardado"); st.session_state['ok']=False
-
     with st.form("fc"):
         c1, c2 = st.columns([1, 2])
-        with c1:
-            ms = st.selectbox("Marca", ["- Seleccionar -"] + list_m)
-            mt = st.text_input("¿Nueva?", placeholder="Escribe aquí")
-            mf = str(mt if mt else ms).strip().title()
-            if mf == "- Seleccionar -": mf = ""
-
+        ms = c1.selectbox("Marca", ["-"] + list_m); mt = c1.text_input("¿Nueva?", placeholder="Escribe aquí")
+        mf = str(mt if mt else ms).strip().title()
+        if mf == "-": mf = ""
         mod = c2.text_input("Modelo")
-
-        c3, c4, c5 = st.columns(3)
-        with c3:
-            ts = st.selectbox("Tienda", ["- Seleccionar -"] + list_t)
-            tt = st.text_input("¿Nueva?", placeholder="Escribe aquí")
-            tf = str(tt if tt else ts).strip().title()
-            if tf == "- Seleccionar -": tf = ""
-
-        ta = c4.text_input("Talla")
         
-        # PRECIO: Texto libre para que aceptes comas
+        c3, c4, c5 = st.columns(3)
+        ts = c3.selectbox("Tienda", ["-"] + list_t); tt = c3.text_input("¿Nueva?", placeholder="Escribe aquí")
+        tf = str(tt if tt else ts).strip().title()
+        if tf == "-": tf = ""
+        
+        ta = c4.text_input("Talla")
+        # Aquí escribes con coma (ej: 45,50) y el sistema lo entiende
         pr_txt = c5.text_input("Precio Compra (€)", placeholder="Ej: 45,50")
         
-        if st.form_submit_button("GUARDAR"):
+        if st.form_submit_button("GUARDAR EN STOCK"):
             if not mod or not mf: st.error("Falta Marca o Modelo")
             else:
-                # Limpiamos el precio (coma o punto -> float)
-                p = limpiar_precio(pr_txt)
+                p = normalizar_precio_lectura(pr_txt) # Convierte tu "45,50" a 45.50 (número)
                 nid = 1 if df.empty else df['ID'].max()+1
-                
-                new = {"ID":nid, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, 
-                       "Marca":mf, "Modelo":mod, "Talla":ta, "Tienda Origen":tf, 
-                       "Plataforma Venta":"", "Cuenta Venta":"", 
-                       "Precio Compra":p, "Precio Venta":0.0, 
-                       "Estado":"En Stock", "Ganancia Neta":0.0, "ROI %":0.0}
-                
+                new = {"ID":nid, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":mf, "Modelo":mod, "Talla":ta, "Tienda Origen":tf, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":p, "Precio Venta":0.0, "Estado":"En Stock", "Ganancia Neta":0.0, "ROI %":0.0}
                 df = pd.concat([df, pd.DataFrame([new])], ignore_index=True)
-                guardar_datos(df)
-                st.session_state['ok']=True; st.rerun()
+                guardar_datos(df); st.success("Guardado"); st.rerun()
 
 # --- 2. VENDER ---
 elif op == "💸 Vender":
@@ -215,17 +214,15 @@ elif op == "💸 Vender":
         st.info(f"VENDIENDO: {row['Marca']} {row['Modelo']}")
         with st.form("fv"):
             pv_txt = st.text_input("Precio Venta (€)", placeholder="Ej: 100,50")
-            c3,c4=st.columns(2); plat=c3.selectbox("Plataforma",["Vinted","Wallapop","StockX","Otro"]); cta=c4.text_input("Cuenta Venta")
-            if st.form_submit_button("CONFIRMAR"):
-                pv = limpiar_precio(pv_txt)
+            c3,c4=st.columns(2); plat=c3.selectbox("Plataforma",["Vinted","Wallapop","StockX"]); cta=c4.text_input("Cuenta Venta")
+            if st.form_submit_button("CONFIRMAR VENTA"):
+                pv = normalizar_precio_lectura(pv_txt)
                 idx = df.index[df['ID']==ids][0]
                 g = pv - row['Precio Compra']
                 coste = row['Precio Compra']
                 roi = (g/coste*100) if coste > 0 else 0
                 
-                df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=pv
-                df.at[idx,'Plataforma Venta']=plat; df.at[idx,'Cuenta Venta']=cta; df.at[idx,'Ganancia Neta']=g; df.at[idx,'ROI %']=roi
-                
+                df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=pv; df.at[idx,'Plataforma Venta']=plat; df.at[idx,'Cuenta Venta']=cta; df.at[idx,'Ganancia Neta']=g; df.at[idx,'ROI %']=roi
                 guardar_datos(df); st.balloons(); st.success("Vendido"); st.rerun()
 
 # --- 3. HISTORIAL ---
@@ -238,6 +235,8 @@ elif op == "📦 Historial":
             idb = int(sb.split(" |")[0].replace("ID:",""))
             if st.button("BORRAR", type="primary"):
                 guardar_datos(df[df['ID']!=idb]); st.success("Borrado"); st.rerun()
+    
+    # En la tabla, los precios se verán con punto (estándar internacional) pero los cálculos estarán bien
     st.dataframe(df, hide_index=True, use_container_width=True)
 
 # --- 4. FINANZAS ---
@@ -249,16 +248,12 @@ elif op == "📊 Finanzas":
         ben = s['Ganancia Neta'].sum()
         gst = df[df['Estado']=='En Stock']['Precio Compra'].sum()
         
-        # Formato visual europeo (con coma para decimales en la tarjeta)
+        # Aquí formateamos visualmente con coma para que lo veas como te gusta
         ben_str = f"{ben:,.2f} €".replace(",", "@").replace(".", ",").replace("@", ".")
         gst_str = f"{gst:,.2f} €".replace(",", "@").replace(".", ",").replace("@", ".")
         
         k1.metric("Beneficio Neto Total", ben_str)
         k2.metric("Gasto Total en Stock", gst_str)
-        
         st.divider()
-        st.subheader("Gasto por Tienda")
-        st.bar_chart(df.groupby('Tienda Origen')['Precio Compra'].sum())
-        
-        st.subheader("Beneficio por Plataforma")
-        st.bar_chart(s.groupby('Plataforma Venta')['Ganancia Neta'].sum())
+        st.subheader("Gasto por Tienda"); st.bar_chart(df.groupby('Tienda Origen')['Precio Compra'].sum())
+        st.subheader("Beneficio por Plataforma"); st.bar_chart(s.groupby('Plataforma Venta')['Ganancia Neta'].sum())
