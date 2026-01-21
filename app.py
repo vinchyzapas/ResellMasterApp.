@@ -7,7 +7,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas V44", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V45", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -20,13 +20,11 @@ st.markdown("""
         color: #000000 !important; background-color: #F0F2F6 !important; border-radius: 5px;
     }
     
-    /* BOTÓN ROJO DE ENTRADA Y ACCIÓN */
-    .stButton > button {
-        background-color: #D32F2F !important; color: #FFFFFF !important;
-        border: 2px solid #B71C1C !important; font-weight: 900 !important; width: 100% !important;
+    /* BOTÓN ROJO */
+    div.stButton > button {
+        background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%;
         padding: 12px; font-size: 16px;
     }
-    .stButton > button:hover {background-color: #FF5252 !important;}
     
     /* Métricas */
     div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
@@ -43,8 +41,8 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.markdown("### Versión 44")
-    with st.form("login_v44"):
+    st.markdown("### Versión 45")
+    with st.form("login_v45"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -208,7 +206,14 @@ elif st.session_state['seccion_actual'] == "Historial":
     
     # Ordenador Manual
     col_sort1, col_sort2 = st.columns(2)
-    criterio_orden = col_sort1.selectbox("🔃 Ordenar por:", ["Fecha Compra (Reciente)", "Fecha Compra (Antigua)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Precio (Alto-Bajo)"])
+    # AÑADIDAS LAS OPCIONES DE TALLA AQUÍ
+    opciones_orden = [
+        "Fecha Compra (Reciente)", "Fecha Compra (Antigua)", 
+        "Marca (A-Z)", "Precio (Bajo-Alto)", "Precio (Alto-Bajo)", 
+        "Talla (Menor a Mayor)", "Talla (Mayor a Menor)", # NUEVO
+        "Estado"
+    ]
+    criterio_orden = col_sort1.selectbox("🔃 Ordenar por:", opciones_orden)
     
     df_ver = df.copy()
     
@@ -216,16 +221,37 @@ elif st.session_state['seccion_actual'] == "Historial":
         mask = df_ver.astype(str).apply(lambda row: row.str.contains(busqueda, case=False).any(), axis=1)
         df_ver = df_ver[mask]
 
+    # LOGICA DE ORDENACIÓN
     if criterio_orden == "Fecha Compra (Reciente)": df_ver = df_ver.sort_values(by="Fecha Compra", ascending=False)
     elif criterio_orden == "Fecha Compra (Antigua)": df_ver = df_ver.sort_values(by="Fecha Compra", ascending=True)
     elif criterio_orden == "Marca (A-Z)": df_ver = df_ver.sort_values(by="Marca", ascending=True)
     elif criterio_orden == "Precio (Bajo-Alto)": df_ver = df_ver.sort_values(by="Precio Compra", ascending=True)
     elif criterio_orden == "Precio (Alto-Bajo)": df_ver = df_ver.sort_values(by="Precio Compra", ascending=False)
+    elif criterio_orden == "Estado": df_ver = df_ver.sort_values(by="Estado", ascending=True)
+    
+    # LÓGICA ESPECIAL PARA ORDENAR TALLAS
+    elif "Talla" in criterio_orden:
+        # Convertimos temporalmente a número para ordenar bien (42.5 > 42)
+        # Las letras (S, M, XL) se convertirán en NaN y se irán al final
+        def talla_a_num(x):
+            try: return float(str(x).replace(",", "."))
+            except: return 999.0 # Si es letra, ponle un número gigante para que vaya al final
+            
+        df_ver['_talla_num'] = df_ver['Talla'].apply(talla_a_num)
+        
+        if "Menor a Mayor" in criterio_orden:
+            df_ver = df_ver.sort_values(by=['_talla_num', 'Talla'], ascending=True)
+        else:
+            df_ver = df_ver.sort_values(by=['_talla_num', 'Talla'], ascending=False)
+            
+        # Borramos la columna temporal para que no salga en pantalla
+        df_ver = df_ver.drop(columns=['_talla_num'])
 
     col_config = {
         "ID": st.column_config.NumberColumn(disabled=True, width="small"),
         "Marca": st.column_config.TextColumn(width="medium"),
         "Modelo": st.column_config.TextColumn(width="large"),
+        "Talla": st.column_config.TextColumn(width="small"), # Talla visible
         "Precio Compra": st.column_config.NumberColumn(format="%.2f €"),
         "Precio Venta": st.column_config.NumberColumn(format="%.2f €"),
         "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €", disabled=True),
@@ -240,44 +266,24 @@ elif st.session_state['seccion_actual'] == "Historial":
         column_config=col_config, 
         hide_index=True, 
         use_container_width=True,
-        num_rows="dynamic", # Permite añadir/borrar filas
-        key="editor_historial_v44"
+        num_rows="dynamic",
+        key="editor_historial_v45"
     )
 
-    # BOTÓN DE GUARDADO MANUAL (SOLUCIÓN AL BUCLE)
     if st.button("💾 GUARDAR CAMBIOS EN LA NUBE", type="primary"):
-        # Actualizamos el dataframe original con los cambios
-        
-        # 1. Detectar si hay filas nuevas (IDs nuevos o vacíos)
-        # 2. Detectar cambios en las existentes
-        # Como es complejo mezclar, lo más seguro es: 
-        # Actualizar las filas que coincidan por ID y añadir las nuevas.
-        # Pero para simplificar y evitar errores, sobrescribiremos usando la lógica de "update".
-        
-        # Recálculo de seguridad
         df_editado['Ganancia Neta'] = df_editado['Precio Venta'] - df_editado['Precio Compra']
         df_editado['Talla'] = df_editado['Talla'].apply(arreglar_talla)
         
-        # Actualizamos el DF principal con lo editado
-        # Nota: Si usas el filtro de búsqueda, df_editado es solo una parte.
-        # Por seguridad, solo actualizamos las IDs que están en pantalla.
-        df_final = df.copy()
-        df_final.set_index('ID', inplace=True)
-        df_editado_idx = df_editado.set_index('ID')
-        df_final.update(df_editado_idx)
-        df_final.reset_index(inplace=True)
-        
-        # Si se han borrado filas en la vista filtrada, es difícil saber si se querían borrar del todo.
-        # Por eso, para borrar, recomendamos usar la selección de filas y la tecla Supr, 
-        # pero el DataEditor a veces no devuelve las filas borradas claramente.
-        # EN ESTA VERSIÓN: GUARDAMOS LO QUE SE VE + LO QUE NO SE VE (si hay filtro).
-        
-        if busqueda:
-            st.warning("⚠️ Estás usando el buscador. Solo se guardarán los cambios de las filas visibles. Para borrar filas, mejor quita el buscador.")
-            # Solo actualizamos los valores modificados
-            # (El código de arriba df_final.update ya lo hace)
+        # Lógica de guardado seguro
+        if busqueda or "Talla" in criterio_orden: # Si está filtrado u ordenado raro
+            st.warning("⚠️ Al usar filtros, solo se guardan las ediciones de lo que ves. Para borrar filas, quita el filtro.")
+            # Actualizamos solo las filas modificadas por ID
+            df_final = df.copy()
+            df_final.set_index('ID', inplace=True)
+            df_editado_idx = df_editado.set_index('ID')
+            df_final.update(df_editado_idx)
+            df_final.reset_index(inplace=True)
         else:
-            # Si no hay búsqueda, asumimos que df_editado es LA VERDAD (incluyendo borrados)
             df_final = df_editado
             
         guardar_datos(df_final)
