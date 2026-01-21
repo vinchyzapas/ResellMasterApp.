@@ -7,7 +7,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas V43", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V44", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -20,11 +20,13 @@ st.markdown("""
         color: #000000 !important; background-color: #F0F2F6 !important; border-radius: 5px;
     }
     
-    /* BOTÓN ROJO */
-    div.stButton > button {
-        background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%;
+    /* BOTÓN ROJO DE ENTRADA Y ACCIÓN */
+    .stButton > button {
+        background-color: #D32F2F !important; color: #FFFFFF !important;
+        border: 2px solid #B71C1C !important; font-weight: 900 !important; width: 100% !important;
         padding: 12px; font-size: 16px;
     }
+    .stButton > button:hover {background-color: #FF5252 !important;}
     
     /* Métricas */
     div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
@@ -41,8 +43,8 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.markdown("### Versión 43")
-    with st.form("login_v43"):
+    st.markdown("### Versión 44")
+    with st.form("login_v44"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -75,7 +77,7 @@ def arreglar_talla(valor):
     return v
 
 # --- CARGAR DATOS ---
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=15, show_spinner=False)
 def cargar_datos_cacheado():
     cols = ["ID", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", 
             "Estado", "Tienda Origen", "Plataforma Venta", "Cuenta Venta", "Fecha Compra", "Fecha Venta", "ROI %"]
@@ -105,27 +107,20 @@ def cargar_datos_cacheado():
         except: pass
     return pd.DataFrame(columns=cols)
 
-# --- GUARDAR DATOS (SOBRESCRITURA DIRECTA) ---
-def guardar_datos(df_a_guardar):
+# --- GUARDAR DATOS ---
+def guardar_datos(df):
     sheet = conectar_sheets()
     if sheet:
-        dfs = df_a_guardar.copy()
-        
-        # Formatear números para Excel
+        dfs = df.copy()
         for col in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
             dfs[col] = dfs[col].apply(lambda x: f"{float(x):.2f}".replace(".", ",") if isinstance(x, (int, float)) else "0,00")
         
-        # Formatear Fechas
         dfs['Fecha Compra'] = pd.to_datetime(dfs['Fecha Compra']).dt.strftime('%d/%m/%Y').replace("NaT", "")
         dfs['Fecha Venta'] = pd.to_datetime(dfs['Fecha Venta']).dt.strftime('%d/%m/%Y').replace("NaT", "")
         
         dfs = dfs.fillna("")
-        
-        # SOBRESCRITURA TOTAL (Esto arregla el problema de borrado)
         sheet.clear()
         sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
-        
-        # LIMPIEZA DE CACHÉ INMEDIATA
         st.cache_data.clear()
 
 def obtener_listas(df):
@@ -142,15 +137,9 @@ if st.sidebar.button("🏠 MENÚ PRINCIPAL", type="primary"):
     st.rerun()
 
 st.sidebar.divider()
-# BOTÓN DE REFRESCO MANUAL
-if st.sidebar.button("🔄 Recargar Datos"):
-    st.cache_data.clear()
-    st.rerun()
-
+if st.sidebar.button("🔄 Recargar"): st.cache_data.clear(); st.rerun()
 st.sidebar.divider()
-if st.sidebar.button("🔒 Cerrar Sesión"): 
-    st.session_state['autenticado']=False
-    st.rerun()
+if st.sidebar.button("🔒 Cerrar Sesión"): st.session_state['autenticado']=False; st.rerun()
 
 df = cargar_datos_cacheado()
 list_m, list_t = obtener_listas(df)
@@ -209,30 +198,29 @@ elif st.session_state['seccion_actual'] == "Vender":
                 df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=prio; df.at[idx,'Plataforma Venta']=pl; df.at[idx,'Cuenta Venta']=cu; df.at[idx,'Ganancia Neta']=prio-row['Precio Compra']
                 guardar_datos(df); st.balloons(); st.success("Vendido"); st.rerun()
 
-# --- HISTORIAL ---
+# --- HISTORIAL (ESTABLE) ---
 elif st.session_state['seccion_actual'] == "Historial":
-    st.title("📋 Historial Global")
+    st.title("📋 Historial")
+    st.info("💡 Haz los cambios que quieras y pulsa 'GUARDAR CAMBIOS' al final.")
     
-    # BUSCADOR
-    busqueda = st.text_input("🔍 Filtrar (Marca, Modelo, ID...):", placeholder="Escribe para filtrar...")
+    # Buscador
+    busqueda = st.text_input("🔍 Buscar:", placeholder="Escribe...")
     
-    # ORDENACIÓN MANUAL (Obligatoria para que no falle)
+    # Ordenador Manual
     col_sort1, col_sort2 = st.columns(2)
-    criterio_orden = col_sort1.selectbox("🔃 Ordenar por:", ["Fecha Compra (Más reciente)", "Fecha Compra (Más antigua)", "Marca (A-Z)", "Precio Compra (Menor a Mayor)", "Estado"])
+    criterio_orden = col_sort1.selectbox("🔃 Ordenar por:", ["Fecha Compra (Reciente)", "Fecha Compra (Antigua)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Precio (Alto-Bajo)"])
     
     df_ver = df.copy()
     
-    # FILTRO
     if busqueda:
         mask = df_ver.astype(str).apply(lambda row: row.str.contains(busqueda, case=False).any(), axis=1)
         df_ver = df_ver[mask]
 
-    # ORDEN
-    if criterio_orden == "Fecha Compra (Más reciente)": df_ver = df_ver.sort_values(by="Fecha Compra", ascending=False)
-    elif criterio_orden == "Fecha Compra (Más antigua)": df_ver = df_ver.sort_values(by="Fecha Compra", ascending=True)
+    if criterio_orden == "Fecha Compra (Reciente)": df_ver = df_ver.sort_values(by="Fecha Compra", ascending=False)
+    elif criterio_orden == "Fecha Compra (Antigua)": df_ver = df_ver.sort_values(by="Fecha Compra", ascending=True)
     elif criterio_orden == "Marca (A-Z)": df_ver = df_ver.sort_values(by="Marca", ascending=True)
-    elif criterio_orden == "Precio Compra (Menor a Mayor)": df_ver = df_ver.sort_values(by="Precio Compra", ascending=True)
-    elif criterio_orden == "Estado": df_ver = df_ver.sort_values(by="Estado", ascending=True)
+    elif criterio_orden == "Precio (Bajo-Alto)": df_ver = df_ver.sort_values(by="Precio Compra", ascending=True)
+    elif criterio_orden == "Precio (Alto-Bajo)": df_ver = df_ver.sort_values(by="Precio Compra", ascending=False)
 
     col_config = {
         "ID": st.column_config.NumberColumn(disabled=True, width="small"),
@@ -246,30 +234,55 @@ elif st.session_state['seccion_actual'] == "Historial":
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
     
-    # TABLA EDITABLE (ELIMINACIÓN HABILITADA)
+    # TABLA EDITABLE
     df_editado = st.data_editor(
         df_ver, 
         column_config=col_config, 
         hide_index=True, 
         use_container_width=True,
-        num_rows="dynamic", # Permite añadir/borrar
-        key="ed_v43"
+        num_rows="dynamic", # Permite añadir/borrar filas
+        key="editor_historial_v44"
     )
 
-    if not df.equals(df_editado):
-        # AQUÍ ESTÁ EL CAMBIO CLAVE:
-        # En lugar de intentar mezclar (update), guardamos df_editado tal cual.
-        # Si borraste una fila en df_editado, al guardar, esa fila desaparece de la nube.
+    # BOTÓN DE GUARDADO MANUAL (SOLUCIÓN AL BUCLE)
+    if st.button("💾 GUARDAR CAMBIOS EN LA NUBE", type="primary"):
+        # Actualizamos el dataframe original con los cambios
         
-        # 1. Recalcular por si acaso
+        # 1. Detectar si hay filas nuevas (IDs nuevos o vacíos)
+        # 2. Detectar cambios en las existentes
+        # Como es complejo mezclar, lo más seguro es: 
+        # Actualizar las filas que coincidan por ID y añadir las nuevas.
+        # Pero para simplificar y evitar errores, sobrescribiremos usando la lógica de "update".
+        
+        # Recálculo de seguridad
         df_editado['Ganancia Neta'] = df_editado['Precio Venta'] - df_editado['Precio Compra']
         df_editado['Talla'] = df_editado['Talla'].apply(arreglar_talla)
         
-        # 2. Guardar DIRECTAMENTE la tabla editada
-        guardar_datos(df_editado)
+        # Actualizamos el DF principal con lo editado
+        # Nota: Si usas el filtro de búsqueda, df_editado es solo una parte.
+        # Por seguridad, solo actualizamos las IDs que están en pantalla.
+        df_final = df.copy()
+        df_final.set_index('ID', inplace=True)
+        df_editado_idx = df_editado.set_index('ID')
+        df_final.update(df_editado_idx)
+        df_final.reset_index(inplace=True)
         
-        st.toast("✅ Cambios guardados y caché limpiada")
-        st.rerun() # Recarga forzosa para ver los cambios
+        # Si se han borrado filas en la vista filtrada, es difícil saber si se querían borrar del todo.
+        # Por eso, para borrar, recomendamos usar la selección de filas y la tecla Supr, 
+        # pero el DataEditor a veces no devuelve las filas borradas claramente.
+        # EN ESTA VERSIÓN: GUARDAMOS LO QUE SE VE + LO QUE NO SE VE (si hay filtro).
+        
+        if busqueda:
+            st.warning("⚠️ Estás usando el buscador. Solo se guardarán los cambios de las filas visibles. Para borrar filas, mejor quita el buscador.")
+            # Solo actualizamos los valores modificados
+            # (El código de arriba df_final.update ya lo hace)
+        else:
+            # Si no hay búsqueda, asumimos que df_editado es LA VERDAD (incluyendo borrados)
+            df_final = df_editado
+            
+        guardar_datos(df_final)
+        st.success("✅ Cambios guardados correctamente.")
+        st.rerun()
 
 # --- FINANZAS PRO ---
 elif st.session_state['seccion_actual'] == "Finanzas":
@@ -291,7 +304,6 @@ elif st.session_state['seccion_actual'] == "Finanzas":
         total_beneficio = df_sold['Ganancia Neta'].sum()
         total_gasto_stock = df_stock['Precio Compra'].sum()
         cantidad_stock = len(df_stock)
-        
         total_ventas_num = len(df_sold)
         total_compras_num = len(df)
         
