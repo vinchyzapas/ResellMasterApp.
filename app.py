@@ -7,39 +7,27 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas V41", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V42", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
 <style>
-    /* Fondo Blanco / Texto Negro */
     .stApp {background-color: #FFFFFF; color: #000000;}
-    
-    /* Barra Lateral Negra */
     section[data-testid="stSidebar"] {background-color: #111111;}
     section[data-testid="stSidebar"] * {color: #FFFFFF !important;}
     
-    /* Botones Menú Principal */
-    .big-button {
-        width: 100%; padding: 30px; font-size: 22px; font-weight: bold;
-        border-radius: 12px; border: 2px solid #ddd; background-color: #f8f9fa;
-        color: black; text-align: center; cursor: pointer; margin-bottom: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    
-    /* Inputs */
     .stTextInput input, .stNumberInput input, .stSelectbox div {
         color: #000000 !important; background-color: #F0F2F6 !important; border-radius: 5px;
     }
     
-    /* Botón Rojo Acción */
+    /* BOTÓN ROJO */
     div.stButton > button {
         background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%;
+        padding: 12px; font-size: 16px;
     }
     
-    /* Métricas Finanzas */
-    div[data-testid="stMetricValue"] {font-size: 20px !important; color: #2E7D32 !important;}
-    div[data-testid="stMetricLabel"] {font-size: 14px !important; font-weight: bold;}
+    /* Métricas */
+    div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -47,14 +35,14 @@ st.markdown("""
 BASES_MARCAS = ["Adidas", "Nike", "Hoka", "Salomon", "Calvin Klein", "Asics", "New Balance", "Merrell"]
 BASES_TIENDAS = ["Asos", "Asphaltgold", "Privalia", "Amazon", "Sneakersnuff", "Footlocker", "Zalando", "Vinted"]
 
-# --- GESTIÓN SESIÓN ---
+# --- LOGIN ---
 if 'autenticado' not in st.session_state: st.session_state['autenticado'] = False
 if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] = "Inicio"
 
-# --- LOGIN ---
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    with st.form("login_v41"):
+    st.markdown("### Versión 42")
+    with st.form("login_v42"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -86,7 +74,7 @@ def arreglar_talla(valor):
     if v == "nan": return ""
     return v
 
-# --- CARGAR DATOS (PREPARADO PARA ORDENAR) ---
+# --- CARGAR DATOS ---
 @st.cache_data(ttl=5, show_spinner=False)
 def cargar_datos_cacheado():
     cols = ["ID", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", 
@@ -100,23 +88,16 @@ def cargar_datos_cacheado():
                 for c in cols: 
                     if c not in df.columns: df[c] = ""
                 
-                # NÚMEROS REALES
                 df['Precio Compra'] = df['Precio Compra'].apply(forzar_numero)
                 df['Precio Venta'] = df['Precio Venta'].apply(forzar_numero)
                 df['Ganancia Neta'] = df['Precio Venta'] - df['Precio Compra']
                 df.loc[df['Estado'] == 'En Stock', 'Ganancia Neta'] = 0.0
                 
                 df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
+                for c in ['Marca', 'Modelo', 'Tienda Origen']:
+                    df[c] = df[c].astype(str).str.strip().str.title()
                 
-                # TEXTOS LIMPIOS (Vital para ordenar alfabéticamente)
-                txt_cols = ['Marca', 'Modelo', 'Tienda Origen', 'Plataforma Venta', 'Cuenta Venta', 'Estado', 'Talla']
-                for c in txt_cols:
-                    df[c] = df[c].astype(str).replace('nan', '').str.strip().str.title()
-                
-                # Talla especial
                 df['Talla'] = df['Talla'].apply(arreglar_talla)
-
-                # FECHAS REALES
                 df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
                 df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
                 
@@ -131,10 +112,8 @@ def guardar_datos(df):
         dfs = df.copy()
         for col in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
             dfs[col] = dfs[col].apply(lambda x: f"{float(x):.2f}".replace(".", ",") if isinstance(x, (int, float)) else "0,00")
-        
         dfs['Fecha Compra'] = pd.to_datetime(dfs['Fecha Compra']).dt.strftime('%d/%m/%Y').replace("NaT", "")
         dfs['Fecha Venta'] = pd.to_datetime(dfs['Fecha Venta']).dt.strftime('%d/%m/%Y').replace("NaT", "")
-        
         dfs = dfs.fillna("")
         sheet.clear()
         sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
@@ -148,8 +127,6 @@ def obtener_listas(df):
 # ==========================================
 # INTERFAZ PRINCIPAL
 # ==========================================
-
-# BARRA LATERAL (NAVEGACIÓN SEGURA)
 st.sidebar.title("Navegación")
 if st.sidebar.button("🏠 MENÚ PRINCIPAL", type="primary"):
     st.session_state['seccion_actual'] = "Inicio"
@@ -165,12 +142,12 @@ if st.sidebar.button("🔒 Cerrar Sesión"):
 df = cargar_datos_cacheado()
 list_m, list_t = obtener_listas(df)
 
-# --- PANTALLA INICIO ---
+# --- INICIO ---
 if st.session_state['seccion_actual'] == "Inicio":
     st.title("👟 Vinchy Zapas")
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("➕ NUEVA COMPRA", use_container_width=True): st.session_state['seccion_actual'] = "Nuevo"; st.rerun()
+        if st.button("➕ NUEVA", use_container_width=True): st.session_state['seccion_actual'] = "Nuevo"; st.rerun()
         st.write("")
         if st.button("📋 HISTORIAL", use_container_width=True): st.session_state['seccion_actual'] = "Historial"; st.rerun()
     with c2:
@@ -180,16 +157,16 @@ if st.session_state['seccion_actual'] == "Inicio":
 
 # --- NUEVO ---
 elif st.session_state['seccion_actual'] == "Nuevo":
-    st.title("➕ Nueva Compra")
+    st.title("➕ Nueva")
     if 'ok' in st.session_state and st.session_state['ok']: st.success("✅ Guardado"); st.session_state['ok']=False
     with st.form("f_new"):
         c1, c2 = st.columns([1, 2])
-        ms = c1.selectbox("Marca", ["-"] + list_m); mt = c1.text_input("¿Nueva?", placeholder="Escribe...", key="kmt")
+        ms = c1.selectbox("Marca", ["-"] + list_m); mt = c1.text_input("¿Nueva?", key="kmt")
         mf = str(mt if mt else ms).strip().title()
         if mf == "-": mf = ""
         mod = c2.text_input("Modelo")
         c3, c4, c5 = st.columns(3)
-        ts = c3.selectbox("Tienda", ["-"] + list_t); tt = c3.text_input("¿Nueva?", placeholder="Escribe...", key="ktt")
+        ts = c3.selectbox("Tienda", ["-"] + list_t); tt = c3.text_input("¿Nueva?", key="ktt")
         tf = str(tt if tt else ts).strip().title()
         if tf == "-": tf = ""
         ta = c4.text_input("Talla"); pr = c5.text_input("Precio Compra (€)", placeholder="45,50")
@@ -222,8 +199,31 @@ elif st.session_state['seccion_actual'] == "Vender":
 # --- HISTORIAL ---
 elif st.session_state['seccion_actual'] == "Historial":
     st.title("📋 Historial Global")
+    
+    # 1. BUSCADOR
     busqueda = st.text_input("🔍 Filtrar (Marca, Modelo, ID...):", placeholder="Escribe para filtrar...")
+    
+    # 2. ORDENACIÓN MANUAL (SOLUCIÓN INFALIBLE)
+    col_sort1, col_sort2 = st.columns(2)
+    criterio_orden = col_sort1.selectbox("🔃 Ordenar por:", ["Fecha Compra (Más reciente)", "Fecha Compra (Más antigua)", "Marca (A-Z)", "Precio Compra (Menor a Mayor)", "Precio Compra (Mayor a Menor)", "Estado"])
+    
     df_ver = df.copy()
+    
+    # APLICAR ORDEN
+    if criterio_orden == "Fecha Compra (Más reciente)":
+        df_ver = df_ver.sort_values(by="Fecha Compra", ascending=False)
+    elif criterio_orden == "Fecha Compra (Más antigua)":
+        df_ver = df_ver.sort_values(by="Fecha Compra", ascending=True)
+    elif criterio_orden == "Marca (A-Z)":
+        df_ver = df_ver.sort_values(by="Marca", ascending=True)
+    elif criterio_orden == "Precio Compra (Menor a Mayor)":
+        df_ver = df_ver.sort_values(by="Precio Compra", ascending=True)
+    elif criterio_orden == "Precio Compra (Mayor a Menor)":
+        df_ver = df_ver.sort_values(by="Precio Compra", ascending=False)
+    elif criterio_orden == "Estado":
+        df_ver = df_ver.sort_values(by="Estado", ascending=True)
+
+    # APLICAR FILTRO
     if busqueda:
         mask = df_ver.astype(str).apply(lambda row: row.str.contains(busqueda, case=False).any(), axis=1)
         df_ver = df_ver[mask]
@@ -239,8 +239,8 @@ elif st.session_state['seccion_actual'] == "Historial":
         "Fecha Venta": st.column_config.DateColumn(format="DD/MM/YYYY"),
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    st.caption("👆 Pulsa en los títulos de la tabla para ordenar.")
-    df_editado = st.data_editor(df_ver, column_config=col_config, hide_index=True, use_container_width=True, num_rows="dynamic", key="ed_v41")
+    
+    df_editado = st.data_editor(df_ver, column_config=col_config, hide_index=True, use_container_width=True, num_rows="dynamic", key="ed_v42")
     if not df.equals(df_editado):
         df_editado['Ganancia Neta'] = df_editado['Precio Venta'] - df_editado['Precio Compra']
         df_editado['Talla'] = df_editado['Talla'].apply(arreglar_talla)
@@ -250,7 +250,6 @@ elif st.session_state['seccion_actual'] == "Historial":
 elif st.session_state['seccion_actual'] == "Finanzas":
     st.title("📊 Panel Financiero")
     
-    # Exportar
     c_ex1, c_ex2 = st.columns(2)
     c_ex1.download_button("📥 Descargar STOCK CSV", df[df['Estado']=='En Stock'].to_csv(index=False).encode('utf-8-sig'), "stock.csv", "text/csv")
     c_ex2.download_button("💰 Descargar VENTAS CSV", df[df['Estado']=='Vendido'].to_csv(index=False).encode('utf-8-sig'), "ventas.csv", "text/csv")
@@ -261,36 +260,36 @@ elif st.session_state['seccion_actual'] == "Finanzas":
         df_sold = df[df['Estado'] == 'Vendido']
         df_stock = df[df['Estado'] == 'En Stock']
         
-        # Filtros de Mes
+        # Filtros
         mask_compras_mes = (df['Fecha Compra'].dt.month == hoy.month) & (df['Fecha Compra'].dt.year == hoy.year)
         mask_ventas_mes = (df_sold['Fecha Venta'].dt.month == hoy.month) & (df_sold['Fecha Venta'].dt.year == hoy.year)
         
-        # --- CÁLCULOS SOLICITADOS ---
-        # 1. Totales Históricos
+        # Cálculos
         total_beneficio = df_sold['Ganancia Neta'].sum()
-        total_gasto_stock = df_stock['Precio Compra'].sum() # Dinero parado
-        total_ventas_num = len(df_sold)
-        total_compras_num = len(df) # Todo lo que ha entrado alguna vez
+        total_gasto_stock = df_stock['Precio Compra'].sum()
+        cantidad_stock = len(df_stock) # NUEVO: CUENTA LOS PARES
         
-        # 2. Mensuales (Este mes)
+        total_ventas_num = len(df_sold)
+        total_compras_num = len(df)
+        
         mes_beneficio = df_sold[mask_ventas_mes]['Ganancia Neta'].sum()
-        mes_gasto_compras = df[mask_compras_mes]['Precio Compra'].sum() # Dinero gastado en compras este mes
+        mes_gasto_compras = df[mask_compras_mes]['Precio Compra'].sum()
         mes_ventas_num = len(df_sold[mask_ventas_mes])
         mes_compras_num = len(df[mask_compras_mes])
 
-        # --- VISUALIZACIÓN ---
-        st.subheader(f"📅 Resumen Mes: {hoy.strftime('%B %Y')}")
+        # Visuales
+        st.subheader(f"📅 Resumen {hoy.strftime('%B %Y')}")
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Beneficio Mes", f"{mes_beneficio:,.2f} €")
-        m2.metric("Gasto Compras Mes", f"{mes_gasto_compras:,.2f} €")
-        m3.metric("Ventas (Cant.)", mes_ventas_num)
-        m4.metric("Compras (Cant.)", mes_compras_num)
+        m2.metric("Gasto Mes", f"{mes_gasto_compras:,.2f} €")
+        m3.metric("Ventas (Uds.)", mes_ventas_num)
+        m4.metric("Compras (Uds.)", mes_compras_num)
         
         st.divider()
-        
-        st.subheader("🌍 Resumen Global (Histórico)")
+        st.subheader("🌍 Resumen Global")
         g1, g2, g3, g4 = st.columns(4)
         g1.metric("Beneficio TOTAL", f"{total_beneficio:,.2f} €")
+        # MÉTRICAS DE STOCK SEPARADAS
         g2.metric("Dinero en Stock", f"{total_gasto_stock:,.2f} €")
-        g3.metric("Total Vendidos", total_ventas_num)
-        g4.metric("Total Comprados", total_compras_num)
+        g3.metric("Pares en Stock", f"{cantidad_stock} pares") 
+        g4.metric("Total Vendidos", total_ventas_num)
