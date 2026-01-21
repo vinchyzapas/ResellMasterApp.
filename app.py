@@ -1,5 +1,4 @@
-
-    import streamlit as st
+import streamlit as st
 import pandas as pd
 from datetime import datetime
 import numpy as np
@@ -308,3 +307,4 @@ elif op == "📊 Finanzas":
         st.subheader("Beneficio por Plataforma")
         if not df_vendidos.empty:
             st.bar_chart(df_vendidos.groupby('Plataforma Venta')['Ganancia Neta'].sum())
+
