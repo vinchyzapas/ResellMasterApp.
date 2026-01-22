@@ -9,3 +9,4 @@ numpy
 gspread
 oauth2client
 pyzbar
+plotly
