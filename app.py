@@ -6,8 +6,14 @@ import ssl
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
+# ==========================================
+# 🔗 TU ENLACE CONFIGURADO
+# ==========================================
+LINK_APP = "https://vinchy-zapas.streamlit.app"
+# ==========================================
+
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas V53", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -22,17 +28,9 @@ st.markdown("""
         background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%;
         padding: 12px; font-size: 16px;
     }
-    
-    /* ENLACES VISIBLES */
     a {color: #0000EE !important; font-weight: bold;}
-    
-    /* CÓDIGO QR Y ENLACE COMPARTIR */
-    code {
-        color: #000000 !important; 
-        background-color: #f0f0f0 !important;
-        font-weight: bold;
-        font-size: 14px;
-    }
+    code {color: #000000 !important; background-color: #f0f0f0 !important; font-weight: bold; font-size: 14px;}
+    div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -46,8 +44,7 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.markdown("### Versión 53")
-    with st.form("login_v53"):
+    with st.form("login_final"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -162,12 +159,13 @@ if st.sidebar.button("🏠 MENÚ PRINCIPAL", type="primary"):
     st.rerun()
 st.sidebar.divider()
 
-# COMPARTIR CORREGIDO
+# --- COMPARTIR ---
 with st.sidebar.expander("📲 COMPARTIR APP"):
     st.write("**Tu enlace:**")
-    st.info("https://vinchy-zapas.streamlit.app") # Usamos st.info para que se vea azul y claro
-    st.write("**Escanea para abrir:**")
-    st.image("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://vinchy-zapas.streamlit.app")
+    st.code(LINK_APP)
+    st.write("**Escanea:**")
+    # Genera QR con TU enlace
+    st.image(f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={LINK_APP}")
 
 st.sidebar.divider()
 if st.sidebar.button("🔒 Cerrar Sesión"): st.session_state['autenticado']=False; st.rerun()
@@ -270,8 +268,7 @@ elif st.session_state['seccion_actual'] == "Vender":
 elif st.session_state['seccion_actual'] == "Historial":
     st.title("📋 Historial")
     bus = st.text_input("🔍 Filtrar:", placeholder="Escribe...")
-    cri = st.selectbox("🔃 Ordenar:", ["Fecha Compra (Reciente)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Talla (Menor a Mayor)", "Talla (Mayor a Menor)"])
-    
+    cri = st.selectbox("🔃 Ordenar:", ["Fecha Compra (Reciente)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Talla (Menor-Mayor)", "Talla (Mayor-Menor)"])
     df_v = df.copy()
     if bus: mask = df_v.astype(str).apply(lambda row: row.str.contains(bus, case=False).any(), axis=1); df_v = df_v[mask]
     
@@ -280,48 +277,22 @@ elif st.session_state['seccion_actual'] == "Historial":
     elif "Precio" in cri: df_v = df_v.sort_values(by="Precio Compra", ascending=True)
     elif "Talla" in cri: 
         df_v['T_Num'] = pd.to_numeric(df_v['Talla'], errors='coerce')
-        if "Menor a Mayor" in cri: df_v = df_v.sort_values(by="T_Num", ascending=True)
+        if "Menor-Mayor" in cri: df_v = df_v.sort_values(by="T_Num", ascending=True)
         else: df_v = df_v.sort_values(by="T_Num", ascending=False)
 
     cols_ord = ["ID", "🌐 Web", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", "Estado", "Tracking", "Fecha Compra", "Fecha Venta"]
     col_cfg = {
         "ID": st.column_config.NumberColumn(disabled=True, width="small"),
-        "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"), # ENLACE VISIBLE
+        "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"),
         "Precio Compra": st.column_config.NumberColumn(format="%.2f €"),
         "Precio Venta": st.column_config.NumberColumn(format="%.2f €"),
         "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €", disabled=True),
         "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev53")
+    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev54")
     if not df.equals(df_ed):
         df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num'], errors='ignore')
         df_ag['Ganancia Neta'] = df_ag['Precio Venta'] - df_ag['Precio Compra']
         df_ag['Talla'] = df_ag['Talla'].apply(arreglar_talla)
-        df.update(df_ag); guardar_datos_zapas(df); st.toast("✅ Guardado")
-
-# --- FINANZAS ---
-elif st.session_state['seccion_actual'] == "Finanzas":
-    st.title("📊 Panel Financiero")
-    c1, c2 = st.columns(2)
-    df_x = df.drop(columns=['🌐 Web'], errors='ignore')
-    c1.download_button("📥 Stock CSV", df_x[df_x['Estado']=='En Stock'].to_csv(index=False).encode('utf-8-sig'), "stock.csv", "text/csv")
-    c2.download_button("💰 Ventas CSV", df_x[df_x['Estado']=='Vendido'].to_csv(index=False).encode('utf-8-sig'), "ventas.csv", "text/csv")
-    st.divider()
-    if not df.empty:
-        hoy = datetime.now()
-        ds = df[df['Estado']=='Vendido']; dk = df[df['Estado']=='En Stock']
-        mm_v = (ds['Fecha Venta'].dt.month == hoy.month) & (ds['Fecha Venta'].dt.year == hoy.year)
-        mm_c = (df['Fecha Compra'].dt.month == hoy.month) & (df['Fecha Compra'].dt.year == hoy.year)
-        vm = ds[mm_v].copy()
-        best = f"🏆 {vm.loc[vm['Ganancia Neta'].idxmax()]['Modelo']} (+{vm['Ganancia Neta'].max():.2f}€)" if not vm.empty else "-"
-        st.subheader(f"📅 {hoy.strftime('%B %Y')}"); st.info(best)
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Beneficio", f"{ds[mm_v]['Ganancia Neta'].sum():.2f} €".replace(".", ","))
-        m2.metric("Gasto", f"{df[mm_c]['Precio Compra'].sum():.2f} €".replace(".", ","))
-        m3.metric("Ventas", len(ds[mm_v])); m4.metric("Compras", len(df[mm_c]))
-        st.divider(); st.subheader("🌍 Global")
-        g1, g2, g3, g4 = st.columns(4)
-        g1.metric("Total", f"{ds['Ganancia Neta'].sum():.2f} €".replace(".", ","))
-        g2.metric("Stock", f"{dk['Precio Compra'].sum():.2f} €".replace(".", ","))
-        g3.metric("Pares", len(dk)); g4.metric("Vendidos", len(ds))
+        df.updat
