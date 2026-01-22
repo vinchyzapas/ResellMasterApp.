@@ -5,44 +5,32 @@ import numpy as np
 import ssl
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import plotly.express as px # NUEVA LIBRERÍA DE GRÁFICOS
+import plotly.express as px
 
 # ==========================================
-# 🔗 TU ENLACE
+# 🔗 CONFIGURACIÓN
 # ==========================================
 LINK_APP = "https://vinchy-zapas.streamlit.app"
-LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png" # Logo Zapatilla
-# ==========================================
+LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
 
-# --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas V56", layout="wide", page_icon="👟")
+# --- CONFIGURACIÓN PÁGINA ---
+st.set_page_config(page_title="Vinchy Zapas V57", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
 <style>
-    /* Fondo Blanco / Texto Negro */
     .stApp {background-color: #FFFFFF; color: #000000;}
-    
-    /* Barra Lateral Negra */
     section[data-testid="stSidebar"] {background-color: #111111;}
     section[data-testid="stSidebar"] * {color: #FFFFFF !important;}
-    
-    /* Inputs */
     .stTextInput input, .stNumberInput input, .stSelectbox div {
         color: #000000 !important; background-color: #F0F2F6 !important; border: 1px solid #ccc;
     }
-    
-    /* Botón ROJO */
     div.stButton > button {
-        background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%;
-        padding: 12px; font-size: 16px;
+        background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%; padding: 12px; font-size: 16px;
     }
-    
-    /* Enlaces */
     a {color: #0000EE !important; font-weight: bold;}
-    
-    /* Métricas */
     div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
+    img {border-radius: 10px; margin-top: 5px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -56,8 +44,8 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.image(LOGO_URL, width=100) # Logo en login
-    with st.form("login_v56"):
+    st.image(LOGO_URL, width=80)
+    with st.form("login_v57"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -73,14 +61,20 @@ def obtener_libro_google():
         return client.open("inventario_zapatillas")
     except: return None
 
-# --- GESTIÓN DATOS ---
+# --- GESTIÓN DATOS (PRECISIÓN MATEMÁTICA) ---
 def forzar_numero(valor):
+    """Convierte texto a float con redondeo a 2 decimales"""
     if pd.isna(valor) or str(valor).strip() == "": return 0.0
     try:
-        v = float(str(valor).replace("€", "").replace(",", ".").strip())
-        if v > 1000: v = v/100
-        elif v > 150: v = v/10
-        return float(v)
+        # Limpieza de formato español
+        v = float(str(valor).replace("€", "").replace(".", "").replace(",", ".").strip())
+        
+        # Corrección automática de escalas
+        if v > 10000: v = v / 1000
+        elif v > 1000: v = v / 100
+        elif v > 150: v = v / 10
+        
+        return round(float(v), 2)
     except: return 0.0
 
 def arreglar_talla(valor):
@@ -102,6 +96,7 @@ def cargar_datos_zapas():
         for c in cols: 
             if c not in df.columns: df[c] = ""
             
+        # Conversión Numérica Estricta
         for c in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
             df[c] = df[c].apply(forzar_numero)
 
@@ -124,8 +119,10 @@ def guardar_datos_zapas(df):
         if '🌐 Web' in dfs.columns: dfs = dfs.drop(columns=['🌐 Web'])
         if 'T_Num' in dfs.columns: dfs = dfs.drop(columns=['T_Num'])
         
+        # Guardado con formato español forzado "0,00"
         for col in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
-            dfs[col] = dfs[col].apply(lambda x: f"{float(x):.2f}".replace(".", ",") if isinstance(x, (int, float)) else "0,00")
+            dfs[col] = dfs[col].apply(lambda x: f"{round(float(x), 2):.2f}".replace(".", ",") if isinstance(x, (int, float)) else "0,00")
+            
         dfs['Fecha Compra'] = pd.to_datetime(dfs['Fecha Compra']).dt.strftime('%d/%m/%Y').replace("NaT", "")
         dfs['Fecha Venta'] = pd.to_datetime(dfs['Fecha Venta']).dt.strftime('%d/%m/%Y').replace("NaT", "")
         dfs = dfs.fillna("")
@@ -166,10 +163,8 @@ def obtener_listas(df):
 # ==========================================
 # INTERFAZ PRINCIPAL
 # ==========================================
-
-# --- LOGO EN BARRA LATERAL ---
-st.sidebar.image(LOGO_URL, width=120)
-st.sidebar.markdown("<h2 style='text-align: center; color: white;'>VINCHY ZAPAS</h2>", unsafe_allow_html=True)
+st.sidebar.image(LOGO_URL, width=100)
+st.sidebar.markdown("<h3 style='color: white; text-align: center;'>VINCHY ZAPAS</h3>", unsafe_allow_html=True)
 
 st.sidebar.title("Navegación")
 if st.sidebar.button("🏠 MENÚ PRINCIPAL", type="primary"):
@@ -177,7 +172,7 @@ if st.sidebar.button("🏠 MENÚ PRINCIPAL", type="primary"):
     st.rerun()
 st.sidebar.divider()
 
-with st.sidebar.expander("📲 COMPARTIR"):
+with st.sidebar.expander("📲 COMPARTIR APP"):
     st.image(f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={LINK_APP}")
 
 st.sidebar.divider()
@@ -301,22 +296,20 @@ elif st.session_state['seccion_actual'] == "Historial":
         "Precio Venta": st.column_config.NumberColumn(format="%.2f €"),
         "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €", disabled=True),
         "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
-        
-        # --- AQUI ESTA EL COLOR DE LOS ESTADOS ---
-        "Estado": st.column_config.SelectboxColumn(
-            options=["En Stock", "Vendido"],
-            required=True
-        )
+        "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev56")
-    
+    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev57")
     if not df.equals(df_ed):
         df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num'], errors='ignore')
         df_ag['Ganancia Neta'] = df_ag['Precio Venta'] - df_ag['Precio Compra']
         df_ag['Talla'] = df_ag['Talla'].apply(arreglar_talla)
+        
+        # Redondeo final antes de guardar
+        df_ag['Ganancia Neta'] = df_ag['Ganancia Neta'].apply(lambda x: round(x, 2))
+        
         df.update(df_ag); guardar_datos_zapas(df); st.toast("✅ Guardado")
 
-# --- FINANZAS PRO (GRAFICOS INTERACTIVOS) ---
+# --- FINANZAS ---
 elif st.session_state['seccion_actual'] == "Finanzas":
     st.title("📊 Panel Financiero")
     c1, c2 = st.columns(2)
@@ -337,23 +330,19 @@ elif st.session_state['seccion_actual'] == "Finanzas":
         m1.metric("Beneficio", f"{ds[mm_v]['Ganancia Neta'].sum():.2f} €".replace(".", ","))
         m2.metric("Gasto", f"{df[mm_c]['Precio Compra'].sum():.2f} €".replace(".", ","))
         m3.metric("Ventas", len(ds[mm_v])); m4.metric("Compras", len(df[mm_c]))
+        
         st.divider(); st.subheader("🌍 Global")
         g1, g2, g3, g4 = st.columns(4)
         g1.metric("Total", f"{ds['Ganancia Neta'].sum():.2f} €".replace(".", ","))
         g2.metric("Stock", f"{dk['Precio Compra'].sum():.2f} €".replace(".", ","))
         g3.metric("Pares", len(dk)); g4.metric("Vendidos", len(ds))
         
-        # --- GRÁFICOS INTERACTIVOS ---
         st.divider()
-        st.subheader("📈 Análisis")
         if not ds.empty:
-            c_gra1, c_gra2 = st.columns(2)
-            with c_gra1:
-                # Gráfico de Quesito (Donut) para Marcas
-                fig_pie = px.pie(ds, names='Marca', values='Ganancia Neta', title='Ganancia por Marca', hole=0.4)
-                st.plotly_chart(fig_pie, use_container_width=True)
-            with c_gra2:
-                # Gráfico de Barras para Plataformas
-                fig_bar = px.bar(ds.groupby('Plataforma Venta')['Ganancia Neta'].sum().reset_index(), 
-                                 x='Plataforma Venta', y='Ganancia Neta', title='Beneficio por Plataforma', color='Plataforma Venta')
-                st.plotly_chart(fig_bar, use_container_width=True)
+            c_g1, c_g2 = st.columns(2)
+            with c_g1: 
+                fig = px.pie(ds, names='Marca', values='Ganancia Neta', title='Ganancia por Marca', hole=0.4)
+                st.plotly_chart(fig, use_container_width=True)
+            with c_g2:
+                fig2 = px.bar(ds.groupby('Plataforma Venta')['Ganancia Neta'].sum().reset_index(), x='Plataforma Venta', y='Ganancia Neta', title='Por Plataforma', color='Plataforma Venta')
+                st.plotly_chart(fig2, use_container_width=True)
