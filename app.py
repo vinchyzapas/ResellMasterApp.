@@ -7,29 +7,59 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas V46", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V47", layout="wide", page_icon="👟")
 
-# --- 🎨 ESTILO VISUAL ---
+# --- 🎨 ESTILO VISUAL (FONDO BLANCO / MENÚ NEGRO) ---
 st.markdown("""
 <style>
-    .stApp {background-color: #0E1117; color: white;}
-    section[data-testid="stSidebar"] {background-color: #000000;}
-    section[data-testid="stSidebar"] * {color: white !important;}
-    
-    .stTextInput input, .stNumberInput input {
-        background-color: #333333 !important; color: white !important; border: 1px solid #555;
+    /* 1. Fondo Principal BLANCO */
+    .stApp {
+        background-color: #FFFFFF;
+        color: #000000;
     }
-    div[data-baseweb="select"] > div {background-color: #333333 !important; color: white !important;}
     
-    /* BOTÓN ROJO */
+    /* 2. Barra Lateral NEGRA */
+    section[data-testid="stSidebar"] {
+        background-color: #111111;
+    }
+    /* Texto de la barra lateral BLANCO */
+    section[data-testid="stSidebar"] * {
+        color: #FFFFFF !important;
+    }
+    
+    /* 3. Inputs (Cajas de texto oscuras sobre fondo blanco para contraste) */
+    .stTextInput input, .stNumberInput input, .stSelectbox div {
+        color: #000000 !important;
+        background-color: #F0F2F6 !important;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+    
+    /* 4. Botón ROJO de acción */
     div.stButton > button {
-        background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%;
-        padding: 12px; font-size: 16px;
+        background-color: #D32F2F;
+        color: white;
+        font-weight: bold;
+        border: none;
+        width: 100%;
+        padding: 12px;
+        font-size: 16px;
+    }
+    div.stButton > button:hover {
+        background-color: #B71C1C;
+        color: white;
     }
     
-    /* Métricas */
-    div[data-testid="stMetricValue"] {font-size: 22px !important; color: #4CAF50 !important;}
-    div[data-testid="stMetricLabel"] {color: #AAAAAA !important;}
+    /* 5. Métricas (Números grandes en verde) */
+    div[data-testid="stMetricValue"] {
+        font-size: 24px !important;
+        color: #2E7D32 !important; /* Verde oscuro */
+    }
+    div[data-testid="stMetricLabel"] {
+        font-size: 14px !important;
+        color: #555555 !important;
+        font-weight: bold;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -43,12 +73,12 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.markdown("### Versión 46")
-    with st.form("login_v46"):
-        pin = st.text_input("PIN:", type="password")
-        if st.form_submit_button("ENTRAR"):
+    st.markdown("### Versión 47")
+    with st.form("login_v47"):
+        pin = st.text_input("INTRODUCE PIN:", type="password")
+        if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
-            else: st.error("Incorrecto")
+            else: st.error("🚫 PIN Incorrecto")
     st.stop()
 
 # --- CONEXIÓN ---
@@ -103,7 +133,7 @@ def cargar_datos_cacheado():
                 df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
                 df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
                 
-                # CREAR COLUMNA DE ENLACE DE MERCADO
+                # Enlace de Mercado
                 df['🔍 Mercado'] = "https://www.google.com/search?q=" + df['Marca'].astype(str) + "+" + df['Modelo'].astype(str) + "+precio"
                 
                 return df
@@ -115,9 +145,7 @@ def guardar_datos(df):
     sheet = conectar_sheets()
     if sheet:
         dfs = df.copy()
-        # Eliminamos la columna de enlace antes de guardar porque es solo visual
-        if '🔍 Mercado' in dfs.columns:
-            dfs = dfs.drop(columns=['🔍 Mercado'])
+        if '🔍 Mercado' in dfs.columns: dfs = dfs.drop(columns=['🔍 Mercado'])
             
         for col in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
             dfs[col] = dfs[col].apply(lambda x: f"{float(x):.2f}".replace(".", ",") if isinstance(x, (int, float)) else "0,00")
@@ -164,7 +192,7 @@ if st.session_state['seccion_actual'] == "Inicio":
         st.write("")
         if st.button("📊 FINANZAS", use_container_width=True): st.session_state['seccion_actual'] = "Finanzas"; st.rerun()
 
-# --- NUEVO (MULTI-STOCK) ---
+# --- NUEVO ---
 elif st.session_state['seccion_actual'] == "Nuevo":
     st.title("➕ Nueva Compra")
     if 'ok' in st.session_state and st.session_state['ok']: st.success("✅ Guardado"); st.session_state['ok']=False
@@ -181,21 +209,17 @@ elif st.session_state['seccion_actual'] == "Nuevo":
         ta = c4.text_input("Talla"); pr = c5.text_input("Precio Compra (€)", placeholder="45,50")
         
         st.divider()
-        # MULTI STOCK
-        cantidad = st.number_input("📦 Cantidad (Si compraste varios pares iguales)", min_value=1, value=1)
+        cant = st.number_input("📦 Cantidad (Pares iguales)", min_value=1, value=1)
         
         if st.form_submit_button("GUARDAR EN STOCK"):
             if not mod or not mf: st.error("Falta Marca/Modelo")
             else:
-                p = forzar_numero(pr)
-                nid_base = 1 if df.empty else df['ID'].max()+1
-                
-                nuevas_filas = []
-                for i in range(cantidad):
-                    new = {"ID":nid_base + i, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":mf, "Modelo":mod, "Talla":arreglar_talla(ta), "Tienda Origen":tf, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":p, "Precio Venta":0.0, "Estado":"En Stock", "Ganancia Neta":0.0, "ROI %":0.0}
-                    nuevas_filas.append(new)
-                
-                df = pd.concat([df, pd.DataFrame(nuevas_filas)], ignore_index=True)
+                p = forzar_numero(pr); nid_base = 1 if df.empty else df['ID'].max()+1
+                nuevas = []
+                for i in range(cant):
+                    new = {"ID":nid_base+i, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":mf, "Modelo":mod, "Talla":arreglar_talla(ta), "Tienda Origen":tf, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":p, "Precio Venta":0.0, "Estado":"En Stock", "Ganancia Neta":0.0, "ROI %":0.0}
+                    nuevas.append(new)
+                df = pd.concat([df, pd.DataFrame(nuevas)], ignore_index=True)
                 guardar_datos(df); st.session_state['ok']=True; st.rerun()
 
 # --- VENDER ---
@@ -204,61 +228,51 @@ elif st.session_state['seccion_actual'] == "Vender":
     dfs = df[df['Estado']=='En Stock'].copy()
     opcs = ["-"] + dfs.apply(lambda x: f"ID:{x['ID']} | {x['Marca']} {x['Modelo']} ({x['Talla']})", axis=1).tolist()
     sel = st.selectbox("Buscar zapatilla:", opcs)
-    
     if sel != "-":
         ids = int(sel.split(" |")[0].replace("ID:",""))
         row = df[df['ID']==ids].iloc[0]
-        
         st.markdown(f"### 👟 {row['Marca']} {row['Modelo']}")
-        c_info1, c_info2, c_info3 = st.columns(3)
-        c_info1.metric("Talla", row['Talla'])
-        c_info2.metric("Tienda", row['Tienda Origen'])
-        c_info3.metric("Coste", f"{row['Precio Compra']:.2f} €".replace(".", ","))
+        c_i1, c_i2, c_i3 = st.columns(3)
+        c_i1.metric("Talla", row['Talla']); c_i2.metric("Tienda", row['Tienda Origen'])
+        c_i3.metric("Coste", f"{row['Precio Compra']:.2f} €".replace(".", ","))
         
         st.divider()
         pv_txt = st.text_input("Precio Venta (€)", placeholder="Ej: 100,50")
-        precio_v = forzar_numero(pv_txt)
-        ganancia_prevista = precio_v - row['Precio Compra']
-        
-        if precio_v > 0:
-            color = "green" if ganancia_prevista > 0 else "red"
-            st.markdown(f"#### 🤑 Ganancia: <span style='color:{color}'>{ganancia_prevista:.2f} €</span>", unsafe_allow_html=True)
+        pv = forzar_numero(pv_txt)
+        gan = pv - row['Precio Compra']
+        if pv > 0:
+            col = "green" if gan > 0 else "red"
+            st.markdown(f"#### 💰 Ganancia: <span style='color:{col}'>{gan:.2f} €</span>", unsafe_allow_html=True)
         
         with st.form("f_ven"):
-            c3,c4=st.columns(2)
-            pl = c3.selectbox("Plataforma",["Vinted","Wallapop","StockX","En Persona","Otro"])
-            cu = c4.text_input("Cuenta Venta")
+            c3,c4=st.columns(2); pl=c3.selectbox("Plataforma",["Vinted","Wallapop","StockX","En Persona","Otro"]); cu=c4.text_input("Cuenta Venta")
             if st.form_submit_button("CONFIRMAR VENTA"):
-                df.at[df.index[df['ID']==ids][0], 'Estado'] = 'Vendido'
-                df.at[df.index[df['ID']==ids][0], 'Fecha Venta'] = datetime.now()
-                df.at[df.index[df['ID']==ids][0], 'Precio Venta'] = precio_v
-                df.at[df.index[df['ID']==ids][0], 'Plataforma Venta'] = pl
-                df.at[df.index[df['ID']==ids][0], 'Cuenta Venta'] = cu
-                df.at[df.index[df['ID']==ids][0], 'Ganancia Neta'] = ganancia_prevista
-                guardar_datos(df); st.balloons(); st.success(f"¡Vendido! Ganancia: {ganancia_prevista:.2f}€"); st.rerun()
+                idx=df.index[df['ID']==ids][0]
+                df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=pv; df.at[idx,'Plataforma Venta']=pl; df.at[idx,'Cuenta Venta']=cu; df.at[idx,'Ganancia Neta']=gan
+                guardar_datos(df); st.balloons(); st.success(f"¡Vendido! Ganancia: {gan:.2f}€"); st.rerun()
 
-# --- HISTORIAL (CON ENLACES) ---
+# --- HISTORIAL ---
 elif st.session_state['seccion_actual'] == "Historial":
     st.title("📋 Historial Global")
-    
     busqueda = st.text_input("🔍 Filtrar:", placeholder="Escribe para filtrar...")
-    c_sort1, c_sort2 = st.columns(2)
-    criterio_orden = c_sort1.selectbox("🔃 Ordenar por:", ["Fecha Compra (Más reciente)", "Fecha Compra (Más antigua)", "Marca (A-Z)", "Precio Compra (Menor a Mayor)", "Estado"])
+    c_s1, c_s2 = st.columns(2)
+    cri = c_s1.selectbox("🔃 Ordenar por:", ["Fecha Compra (Más reciente)", "Fecha Compra (Más antigua)", "Marca (A-Z)", "Precio Compra (Menor a Mayor)", "Estado"])
     
     df_ver = df.copy()
-    if busqueda:
-        mask = df_ver.astype(str).apply(lambda row: row.str.contains(busqueda, case=False).any(), axis=1)
-        df_ver = df_ver[mask]
+    if busqueda: mask = df_ver.astype(str).apply(lambda row: row.str.contains(busqueda, case=False).any(), axis=1); df_ver = df_ver[mask]
+    if cri == "Fecha Compra (Más reciente)": df_ver = df_ver.sort_values(by="Fecha Compra", ascending=False)
+    elif cri == "Fecha Compra (Más antigua)": df_ver = df_ver.sort_values(by="Fecha Compra", ascending=True)
+    elif cri == "Marca (A-Z)": df_ver = df_ver.sort_values(by="Marca", ascending=True)
+    elif cri == "Precio Compra (Menor a Mayor)": df_ver = df_ver.sort_values(by="Precio Compra", ascending=True)
+    elif cri == "Estado": df_ver = df_ver.sort_values(by="Estado", ascending=True)
 
-    if criterio_orden == "Fecha Compra (Más reciente)": df_ver = df_ver.sort_values(by="Fecha Compra", ascending=False)
-    elif criterio_orden == "Fecha Compra (Más antigua)": df_ver = df_ver.sort_values(by="Fecha Compra", ascending=True)
-    elif criterio_orden == "Marca (A-Z)": df_ver = df_ver.sort_values(by="Marca", ascending=True)
-    elif criterio_orden == "Precio Compra (Menor a Mayor)": df_ver = df_ver.sort_values(by="Precio Compra", ascending=True)
-    elif criterio_orden == "Estado": df_ver = df_ver.sort_values(by="Estado", ascending=True)
+    # Ordenar columnas con Enlace al principio
+    cols_ord = ["ID", "🔍 Mercado", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", "Estado", "Fecha Compra", "Fecha Venta"]
+    df_ver = df_ver[[c for c in cols_ord if c in df_ver.columns]]
 
-    col_config = {
+    col_cfg = {
         "ID": st.column_config.NumberColumn(disabled=True, width="small"),
-        "🔍 Mercado": st.column_config.LinkColumn(display_text="Buscar"), # NUEVA COLUMNA
+        "🔍 Mercado": st.column_config.LinkColumn(display_text="🔎 Ver"),
         "Marca": st.column_config.TextColumn(width="medium"),
         "Modelo": st.column_config.TextColumn(width="large"),
         "Precio Compra": st.column_config.NumberColumn(format="%.2f €"),
@@ -268,34 +282,20 @@ elif st.session_state['seccion_actual'] == "Historial":
         "Fecha Venta": st.column_config.DateColumn(format="DD/MM/YYYY"),
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    
-    # IMPORTANTE: Reordenamos las columnas para poner el Link al principio
-    columnas_ordenadas = ["ID", "🔍 Mercado", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", "Estado", "Fecha Compra", "Fecha Venta", "Tienda Origen", "Plataforma Venta"]
-    # Solo usamos las que existan
-    cols_final = [c for c in columnas_ordenadas if c in df_ver.columns]
-    
-    df_editado = st.data_editor(df_ver[cols_final], column_config=col_config, hide_index=True, use_container_width=True, num_rows="dynamic", key="ed_v46")
-
-    if not df.equals(df_editado):
-        # Al guardar, ignoramos la columna de Link porque se genera sola
-        df_a_guardar = df_editado.drop(columns=['🔍 Mercado'], errors='ignore')
-        df_a_guardar['Ganancia Neta'] = df_a_guardar['Precio Venta'] - df_a_guardar['Precio Compra']
-        df_a_guardar['Talla'] = df_a_guardar['Talla'].apply(arreglar_talla)
-        
-        # Combinamos cambios
-        df.update(df_a_guardar)
-        guardar_datos(df)
-        st.toast("✅ Cambios guardados")
+    df_ed = st.data_editor(df_ver, column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ed_v47")
+    if not df.equals(df_ed):
+        df_a_g = df_ed.drop(columns=['🔍 Mercado'], errors='ignore')
+        df_a_g['Ganancia Neta'] = df_a_g['Precio Venta'] - df_a_g['Precio Compra']
+        df_a_g['Talla'] = df_a_g['Talla'].apply(arreglar_talla)
+        df.update(df_a_g); guardar_datos(df); st.toast("✅ Cambios guardados")
 
 # --- FINANZAS PRO ---
 elif st.session_state['seccion_actual'] == "Finanzas":
     st.title("📊 Panel Financiero")
-    
     c_ex1, c_ex2 = st.columns(2)
-    # Eliminamos columna Mercado antes de exportar
-    df_export = df.drop(columns=['🔍 Mercado'], errors='ignore')
-    c_ex1.download_button("📥 Descargar STOCK CSV", df_export[df_export['Estado']=='En Stock'].to_csv(index=False).encode('utf-8-sig'), "stock.csv", "text/csv")
-    c_ex2.download_button("💰 Descargar VENTAS CSV", df_export[df_export['Estado']=='Vendido'].to_csv(index=False).encode('utf-8-sig'), "ventas.csv", "text/csv")
+    df_exp = df.drop(columns=['🔍 Mercado'], errors='ignore')
+    c_ex1.download_button("📥 Stock (CSV)", df_exp[df_exp['Estado']=='En Stock'].to_csv(index=False).encode('utf-8-sig'), "stock.csv", "text/csv")
+    c_ex2.download_button("💰 Ventas (CSV)", df_exp[df_exp['Estado']=='Vendido'].to_csv(index=False).encode('utf-8-sig'), "ventas.csv", "text/csv")
     st.divider()
 
     if not df.empty:
@@ -303,15 +303,31 @@ elif st.session_state['seccion_actual'] == "Finanzas":
         df_sold = df[df['Estado'] == 'Vendido']
         df_stock = df[df['Estado'] == 'En Stock']
         
-        mask_compras_mes = (df['Fecha Compra'].dt.month == hoy.month) & (df['Fecha Compra'].dt.year == hoy.year)
-        mask_ventas_mes = (df_sold['Fecha Venta'].dt.month == hoy.month) & (df_sold['Fecha Venta'].dt.year == hoy.year)
+        m_c_m = (df['Fecha Compra'].dt.month == hoy.month) & (df['Fecha Compra'].dt.year == hoy.year)
+        m_v_m = (df_sold['Fecha Venta'].dt.month == hoy.month) & (df_sold['Fecha Venta'].dt.year == hoy.year)
         
+        # CÁLCULO MEJOR VENTA DEL MES
+        ventas_mes_df = df_sold[m_v_m].copy()
+        if not ventas_mes_df.empty:
+            # Calculamos ROI para encontrar la mejor (evitando división por 0)
+            ventas_mes_df['ROI_Calc'] = ventas_mes_df.apply(lambda x: (x['Ganancia Neta'] / x['Precio Compra'] * 100) if x['Precio Compra'] > 0 else 0, axis=1)
+            mejor_v = ventas_mes_df.loc[ventas_mes_df['ROI_Calc'].idxmax()]
+            
+            txt_mejor_modelo = f"{mejor_v['Marca']} {mejor_v['Modelo']}"
+            txt_mejor_dato = f"+{mejor_v['Ganancia Neta']:.2f}€ ({mejor_v['ROI_Calc']:.0f}%)"
+        else:
+            txt_mejor_modelo = "Sin ventas"
+            txt_mejor_dato = "-"
+
         st.subheader(f"📅 Resumen {hoy.strftime('%B %Y')}")
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Beneficio Mes", f"{df_sold[mask_ventas_mes]['Ganancia Neta'].sum():.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
-        m2.metric("Gasto Mes", f"{df[mask_compras_mes]['Precio Compra'].sum():.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
-        m3.metric("Ventas (Uds.)", len(df_sold[mask_ventas_mes]))
-        m4.metric("Compras (Uds.)", len(df[mask_compras_mes]))
+        m1.metric("Beneficio Mes", f"{df_sold[m_v_m]['Ganancia Neta'].sum():.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
+        m2.metric("Gasto Mes", f"{df[m_c_m]['Precio Compra'].sum():.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
+        m3.metric("Ventas (Uds.)", len(df_sold[m_v_m]))
+        m4.metric("Compras (Uds.)", len(df[m_c_m]))
+        
+        # TARJETA MEJOR VENTA
+        st.info(f"🏆 **Mejor Venta del Mes:** {txt_mejor_modelo} -> **{txt_mejor_dato}**")
         
         st.divider()
         st.subheader("🌍 Resumen Global")
@@ -322,13 +338,5 @@ elif st.session_state['seccion_actual'] == "Finanzas":
         g4.metric("Total Vendidos", len(df_sold))
         
         st.divider()
-        
-        # --- NUEVO: TOP MARCAS ---
-        st.subheader("🏆 Marcas Más Rentables")
-        if not df_sold.empty:
-            # Agrupamos por marca y sumamos ganancia
-            top_marcas = df_sold.groupby('Marca')['Ganancia Neta'].sum().sort_values(ascending=False).head(5)
-            st.bar_chart(top_marcas)
-
-   
-     
+        st.subheader("🏆 Marcas Top")
+        if not df_sold.empty: st.bar_chart(df_sold.groupby('Marca')['Ganancia Neta'].sum().sort_values(ascending=False).head(5))
