@@ -7,7 +7,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas V52", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V53", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -22,11 +22,17 @@ st.markdown("""
         background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%;
         padding: 12px; font-size: 16px;
     }
-    a.st-emotion-cache-button {text-decoration: none; color: white !important;}
-    div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
     
-    /* Estilo para el QR */
-    img {border-radius: 10px; border: 5px solid white;}
+    /* ENLACES VISIBLES */
+    a {color: #0000EE !important; font-weight: bold;}
+    
+    /* CÓDIGO QR Y ENLACE COMPARTIR */
+    code {
+        color: #000000 !important; 
+        background-color: #f0f0f0 !important;
+        font-weight: bold;
+        font-size: 14px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -40,8 +46,8 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.markdown("### Versión 52")
-    with st.form("login_v52"):
+    st.markdown("### Versión 53")
+    with st.form("login_v53"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -93,7 +99,10 @@ def cargar_datos_zapas():
         df['Talla'] = df['Talla'].apply(arreglar_talla)
         df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
         df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
-        df['🔍 Mercado'] = "https://www.google.com/search?q=" + df['Marca'].astype(str) + "+" + df['Modelo'].astype(str) + "+precio"
+        
+        # Enlace Web visible
+        df['🌐 Web'] = "https://www.google.com/search?q=" + df['Marca'].astype(str) + "+" + df['Modelo'].astype(str) + "+precio"
+        
         return df
     except: return pd.DataFrame()
 
@@ -102,7 +111,9 @@ def guardar_datos_zapas(df):
     if libro:
         sheet = libro.sheet1
         dfs = df.copy()
-        if '🔍 Mercado' in dfs.columns: dfs = dfs.drop(columns=['🔍 Mercado'])
+        if '🌐 Web' in dfs.columns: dfs = dfs.drop(columns=['🌐 Web'])
+        if 'T_Num' in dfs.columns: dfs = dfs.drop(columns=['T_Num'])
+        
         for col in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
             dfs[col] = dfs[col].apply(lambda x: f"{float(x):.2f}".replace(".", ",") if isinstance(x, (int, float)) else "0,00")
         dfs['Fecha Compra'] = pd.to_datetime(dfs['Fecha Compra']).dt.strftime('%d/%m/%Y').replace("NaT", "")
@@ -112,7 +123,6 @@ def guardar_datos_zapas(df):
         sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
         st.cache_data.clear()
 
-# --- TRACKING ---
 def cargar_trackings():
     libro = obtener_libro_google()
     if not libro: return pd.DataFrame(columns=["Alias", "Tracking", "Fecha"])
@@ -152,12 +162,11 @@ if st.sidebar.button("🏠 MENÚ PRINCIPAL", type="primary"):
     st.rerun()
 st.sidebar.divider()
 
-# --- NUEVO BOTÓN PARA COMPARTIR ---
+# COMPARTIR CORREGIDO
 with st.sidebar.expander("📲 COMPARTIR APP"):
     st.write("**Tu enlace:**")
-    st.code("https://vinchy-zapas.streamlit.app")
+    st.info("https://vinchy-zapas.streamlit.app") # Usamos st.info para que se vea azul y claro
     st.write("**Escanea para abrir:**")
-    # Genera QR automático de la web
     st.image("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://vinchy-zapas.streamlit.app")
 
 st.sidebar.divider()
@@ -261,27 +270,30 @@ elif st.session_state['seccion_actual'] == "Vender":
 elif st.session_state['seccion_actual'] == "Historial":
     st.title("📋 Historial")
     bus = st.text_input("🔍 Filtrar:", placeholder="Escribe...")
-    cri = st.selectbox("🔃 Ordenar:", ["Fecha Compra (Reciente)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Talla (Menor-Mayor)"])
+    cri = st.selectbox("🔃 Ordenar:", ["Fecha Compra (Reciente)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Talla (Menor a Mayor)", "Talla (Mayor a Menor)"])
+    
     df_v = df.copy()
     if bus: mask = df_v.astype(str).apply(lambda row: row.str.contains(bus, case=False).any(), axis=1); df_v = df_v[mask]
+    
     if "Reciente" in cri: df_v = df_v.sort_values(by="Fecha Compra", ascending=False)
     elif "Marca" in cri: df_v = df_v.sort_values(by="Marca", ascending=True)
     elif "Precio" in cri: df_v = df_v.sort_values(by="Precio Compra", ascending=True)
     elif "Talla" in cri: 
         df_v['T_Num'] = pd.to_numeric(df_v['Talla'], errors='coerce')
-        df_v = df_v.sort_values(by="T_Num", ascending=True)
+        if "Menor a Mayor" in cri: df_v = df_v.sort_values(by="T_Num", ascending=True)
+        else: df_v = df_v.sort_values(by="T_Num", ascending=False)
 
     cols_ord = ["ID", "🌐 Web", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", "Estado", "Tracking", "Fecha Compra", "Fecha Venta"]
     col_cfg = {
         "ID": st.column_config.NumberColumn(disabled=True, width="small"),
-        "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"),
+        "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"), # ENLACE VISIBLE
         "Precio Compra": st.column_config.NumberColumn(format="%.2f €"),
         "Precio Venta": st.column_config.NumberColumn(format="%.2f €"),
         "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €", disabled=True),
         "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev52")
+    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev53")
     if not df.equals(df_ed):
         df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num'], errors='ignore')
         df_ag['Ganancia Neta'] = df_ag['Precio Venta'] - df_ag['Precio Compra']
@@ -290,7 +302,7 @@ elif st.session_state['seccion_actual'] == "Historial":
 
 # --- FINANZAS ---
 elif st.session_state['seccion_actual'] == "Finanzas":
-    st.title("📊 Finanzas")
+    st.title("📊 Panel Financiero")
     c1, c2 = st.columns(2)
     df_x = df.drop(columns=['🌐 Web'], errors='ignore')
     c1.download_button("📥 Stock CSV", df_x[df_x['Estado']=='En Stock'].to_csv(index=False).encode('utf-8-sig'), "stock.csv", "text/csv")
