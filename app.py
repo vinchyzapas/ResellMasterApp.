@@ -14,7 +14,7 @@ LINK_APP = "https://vinchy-zapas.streamlit.app"
 LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
 
 # --- CONFIGURACIÓN PÁGINA ---
-st.set_page_config(page_title="Vinchy Zapas V57", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V58", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -22,15 +22,29 @@ st.markdown("""
     .stApp {background-color: #FFFFFF; color: #000000;}
     section[data-testid="stSidebar"] {background-color: #111111;}
     section[data-testid="stSidebar"] * {color: #FFFFFF !important;}
+    
+    /* Inputs */
     .stTextInput input, .stNumberInput input, .stSelectbox div {
-        color: #000000 !important; background-color: #F0F2F6 !important; border: 1px solid #ccc;
+        color: #000000 !important; 
+        background-color: #F0F2F6 !important; 
+        border: 1px solid #ccc;
     }
+    
+    /* Botón ROJO */
     div.stButton > button {
         background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%; padding: 12px; font-size: 16px;
     }
+    
+    /* Enlaces */
     a {color: #0000EE !important; font-weight: bold;}
+    
+    /* Métricas */
     div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
-    img {border-radius: 10px; margin-top: 5px;}
+    
+    /* Título Versión Login */
+    .version-text {
+        font-size: 24px; font-weight: bold; color: #D32F2F; text-align: center; margin-bottom: 20px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -44,8 +58,11 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
+    # VERSIÓN BIEN GRANDE
+    st.markdown('<p class="version-text">VERSIÓN 58</p>', unsafe_allow_html=True)
+    
     st.image(LOGO_URL, width=80)
-    with st.form("login_v57"):
+    with st.form("login_v58"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -61,20 +78,26 @@ def obtener_libro_google():
         return client.open("inventario_zapatillas")
     except: return None
 
-# --- GESTIÓN DATOS (PRECISIÓN MATEMÁTICA) ---
+# --- GESTIÓN DATOS ( SIN CORRECCIONES RARAS ) ---
 def forzar_numero(valor):
-    """Convierte texto a float con redondeo a 2 decimales"""
+    """
+    Convierte texto a número respetando la coma.
+    Ej: "5,6" -> 5.6
+    Ej: "56"  -> 56.0
+    """
     if pd.isna(valor) or str(valor).strip() == "": return 0.0
     try:
-        # Limpieza de formato español
-        v = float(str(valor).replace("€", "").replace(".", "").replace(",", ".").strip())
+        # Limpieza básica
+        txt = str(valor).replace("€", "").strip()
         
-        # Corrección automática de escalas
-        if v > 10000: v = v / 1000
-        elif v > 1000: v = v / 100
-        elif v > 150: v = v / 10
+        # Si hay punto y coma (ej: 1.000,50), quitamos el punto de miles
+        if "." in txt and "," in txt:
+            txt = txt.replace(".", "")
+            
+        # Cambiamos la coma decimal por punto para Python
+        txt = txt.replace(",", ".")
         
-        return round(float(v), 2)
+        return float(txt)
     except: return 0.0
 
 def arreglar_talla(valor):
@@ -96,7 +119,7 @@ def cargar_datos_zapas():
         for c in cols: 
             if c not in df.columns: df[c] = ""
             
-        # Conversión Numérica Estricta
+        # Conversión Numérica
         for c in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
             df[c] = df[c].apply(forzar_numero)
 
@@ -116,16 +139,19 @@ def guardar_datos_zapas(df):
     if libro:
         sheet = libro.sheet1
         dfs = df.copy()
+        # Limpiamos columnas virtuales
         if '🌐 Web' in dfs.columns: dfs = dfs.drop(columns=['🌐 Web'])
         if 'T_Num' in dfs.columns: dfs = dfs.drop(columns=['T_Num'])
         
-        # Guardado con formato español forzado "0,00"
+        # Guardado con formato español forzado "0,00" (con coma)
         for col in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
-            dfs[col] = dfs[col].apply(lambda x: f"{round(float(x), 2):.2f}".replace(".", ",") if isinstance(x, (int, float)) else "0,00")
+            dfs[col] = dfs[col].apply(lambda x: f"{float(x):.2f}".replace(".", ",") if isinstance(x, (int, float)) else "0,00")
             
         dfs['Fecha Compra'] = pd.to_datetime(dfs['Fecha Compra']).dt.strftime('%d/%m/%Y').replace("NaT", "")
         dfs['Fecha Venta'] = pd.to_datetime(dfs['Fecha Venta']).dt.strftime('%d/%m/%Y').replace("NaT", "")
         dfs = dfs.fillna("")
+        
+        # SOBRESCRITURA SEGURA
         sheet.clear()
         sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
         st.cache_data.clear()
@@ -275,6 +301,8 @@ elif st.session_state['seccion_actual'] == "Vender":
 # --- HISTORIAL ---
 elif st.session_state['seccion_actual'] == "Historial":
     st.title("📋 Historial")
+    st.info("💡 Edita cualquier dato y pulsa Enter. Para borrar, selecciona la fila y pulsa Supr (o el icono de papelera).")
+    
     bus = st.text_input("🔍 Filtrar:", placeholder="Escribe...")
     cri = st.selectbox("🔃 Ordenar:", ["Fecha Compra (Reciente)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Talla (Menor-Mayor)", "Talla (Mayor-Menor)"])
     df_v = df.copy()
@@ -298,20 +326,25 @@ elif st.session_state['seccion_actual'] == "Historial":
         "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev57")
+    
+    # TABLA EDITABLE CON GUARDADO DIRECTO
+    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev58")
+    
     if not df.equals(df_ed):
+        # Si algo cambia, lo guardamos tal cual
         df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num'], errors='ignore')
+        # Recalcular ganancia si se cambió el precio a mano
         df_ag['Ganancia Neta'] = df_ag['Precio Venta'] - df_ag['Precio Compra']
         df_ag['Talla'] = df_ag['Talla'].apply(arreglar_talla)
         
-        # Redondeo final antes de guardar
-        df_ag['Ganancia Neta'] = df_ag['Ganancia Neta'].apply(lambda x: round(x, 2))
-        
-        df.update(df_ag); guardar_datos_zapas(df); st.toast("✅ Guardado")
+        # ACTUALIZAR Y SOBRESCRIBIR LA NUBE
+        df.update(df_ag)
+        guardar_datos_zapas(df)
+        st.toast("✅ Cambios guardados")
 
 # --- FINANZAS ---
 elif st.session_state['seccion_actual'] == "Finanzas":
-    st.title("📊 Panel Financiero")
+    st.title("📊 Finanzas")
     c1, c2 = st.columns(2)
     df_x = df.drop(columns=['🌐 Web'], errors='ignore')
     c1.download_button("📥 Stock CSV", df_x[df_x['Estado']=='En Stock'].to_csv(index=False).encode('utf-8-sig'), "stock.csv", "text/csv")
@@ -330,7 +363,6 @@ elif st.session_state['seccion_actual'] == "Finanzas":
         m1.metric("Beneficio", f"{ds[mm_v]['Ganancia Neta'].sum():.2f} €".replace(".", ","))
         m2.metric("Gasto", f"{df[mm_c]['Precio Compra'].sum():.2f} €".replace(".", ","))
         m3.metric("Ventas", len(ds[mm_v])); m4.metric("Compras", len(df[mm_c]))
-        
         st.divider(); st.subheader("🌍 Global")
         g1, g2, g3, g4 = st.columns(4)
         g1.metric("Total", f"{ds['Ganancia Neta'].sum():.2f} €".replace(".", ","))
