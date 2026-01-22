@@ -5,31 +5,43 @@ import numpy as np
 import ssl
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import plotly.express as px # NUEVA LIBRERÍA DE GRÁFICOS
 
 # ==========================================
-# 🔗 TU ENLACE CONFIGURADO
+# 🔗 TU ENLACE
 # ==========================================
 LINK_APP = "https://vinchy-zapas.streamlit.app"
+LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png" # Logo Zapatilla
 # ==========================================
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V56", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
 <style>
+    /* Fondo Blanco / Texto Negro */
     .stApp {background-color: #FFFFFF; color: #000000;}
+    
+    /* Barra Lateral Negra */
     section[data-testid="stSidebar"] {background-color: #111111;}
     section[data-testid="stSidebar"] * {color: #FFFFFF !important;}
+    
+    /* Inputs */
     .stTextInput input, .stNumberInput input, .stSelectbox div {
         color: #000000 !important; background-color: #F0F2F6 !important; border: 1px solid #ccc;
     }
+    
+    /* Botón ROJO */
     div.stButton > button {
         background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%;
         padding: 12px; font-size: 16px;
     }
+    
+    /* Enlaces */
     a {color: #0000EE !important; font-weight: bold;}
-    code {color: #000000 !important; background-color: #f0f0f0 !important; font-weight: bold; font-size: 14px;}
+    
+    /* Métricas */
     div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
 </style>
 """, unsafe_allow_html=True)
@@ -44,7 +56,8 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    with st.form("login_final"):
+    st.image(LOGO_URL, width=100) # Logo en login
+    with st.form("login_v56"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -153,18 +166,18 @@ def obtener_listas(df):
 # ==========================================
 # INTERFAZ PRINCIPAL
 # ==========================================
+
+# --- LOGO EN BARRA LATERAL ---
+st.sidebar.image(LOGO_URL, width=120)
+st.sidebar.markdown("<h2 style='text-align: center; color: white;'>VINCHY ZAPAS</h2>", unsafe_allow_html=True)
+
 st.sidebar.title("Navegación")
 if st.sidebar.button("🏠 MENÚ PRINCIPAL", type="primary"):
     st.session_state['seccion_actual'] = "Inicio"
     st.rerun()
 st.sidebar.divider()
 
-# --- COMPARTIR ---
-with st.sidebar.expander("📲 COMPARTIR APP"):
-    st.write("**Tu enlace:**")
-    st.code(LINK_APP)
-    st.write("**Escanea:**")
-    # Genera QR con TU enlace
+with st.sidebar.expander("📲 COMPARTIR"):
     st.image(f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={LINK_APP}")
 
 st.sidebar.divider()
@@ -175,7 +188,7 @@ list_m, list_t = obtener_listas(df)
 
 # --- INICIO ---
 if st.session_state['seccion_actual'] == "Inicio":
-    st.title("👟 Vinchy Zapas")
+    st.title("👟 Panel de Control")
     c1, c2 = st.columns(2)
     with c1:
         if st.button("➕ NUEVA COMPRA", use_container_width=True): st.session_state['seccion_actual'] = "Nuevo"; st.rerun()
@@ -288,11 +301,59 @@ elif st.session_state['seccion_actual'] == "Historial":
         "Precio Venta": st.column_config.NumberColumn(format="%.2f €"),
         "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €", disabled=True),
         "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
-        "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
+        
+        # --- AQUI ESTA EL COLOR DE LOS ESTADOS ---
+        "Estado": st.column_config.SelectboxColumn(
+            options=["En Stock", "Vendido"],
+            required=True
+        )
     }
-    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev54")
+    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev56")
+    
     if not df.equals(df_ed):
         df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num'], errors='ignore')
         df_ag['Ganancia Neta'] = df_ag['Precio Venta'] - df_ag['Precio Compra']
         df_ag['Talla'] = df_ag['Talla'].apply(arreglar_talla)
-        df.updat
+        df.update(df_ag); guardar_datos_zapas(df); st.toast("✅ Guardado")
+
+# --- FINANZAS PRO (GRAFICOS INTERACTIVOS) ---
+elif st.session_state['seccion_actual'] == "Finanzas":
+    st.title("📊 Panel Financiero")
+    c1, c2 = st.columns(2)
+    df_x = df.drop(columns=['🌐 Web'], errors='ignore')
+    c1.download_button("📥 Stock CSV", df_x[df_x['Estado']=='En Stock'].to_csv(index=False).encode('utf-8-sig'), "stock.csv", "text/csv")
+    c2.download_button("💰 Ventas CSV", df_x[df_x['Estado']=='Vendido'].to_csv(index=False).encode('utf-8-sig'), "ventas.csv", "text/csv")
+    st.divider()
+
+    if not df.empty:
+        hoy = datetime.now()
+        ds = df[df['Estado']=='Vendido']; dk = df[df['Estado']=='En Stock']
+        mm_v = (ds['Fecha Venta'].dt.month == hoy.month) & (ds['Fecha Venta'].dt.year == hoy.year)
+        mm_c = (df['Fecha Compra'].dt.month == hoy.month) & (df['Fecha Compra'].dt.year == hoy.year)
+        vm = ds[mm_v].copy()
+        best = f"🏆 {vm.loc[vm['Ganancia Neta'].idxmax()]['Modelo']} (+{vm['Ganancia Neta'].max():.2f}€)" if not vm.empty else "-"
+        st.subheader(f"📅 {hoy.strftime('%B %Y')}"); st.info(best)
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Beneficio", f"{ds[mm_v]['Ganancia Neta'].sum():.2f} €".replace(".", ","))
+        m2.metric("Gasto", f"{df[mm_c]['Precio Compra'].sum():.2f} €".replace(".", ","))
+        m3.metric("Ventas", len(ds[mm_v])); m4.metric("Compras", len(df[mm_c]))
+        st.divider(); st.subheader("🌍 Global")
+        g1, g2, g3, g4 = st.columns(4)
+        g1.metric("Total", f"{ds['Ganancia Neta'].sum():.2f} €".replace(".", ","))
+        g2.metric("Stock", f"{dk['Precio Compra'].sum():.2f} €".replace(".", ","))
+        g3.metric("Pares", len(dk)); g4.metric("Vendidos", len(ds))
+        
+        # --- GRÁFICOS INTERACTIVOS ---
+        st.divider()
+        st.subheader("📈 Análisis")
+        if not ds.empty:
+            c_gra1, c_gra2 = st.columns(2)
+            with c_gra1:
+                # Gráfico de Quesito (Donut) para Marcas
+                fig_pie = px.pie(ds, names='Marca', values='Ganancia Neta', title='Ganancia por Marca', hole=0.4)
+                st.plotly_chart(fig_pie, use_container_width=True)
+            with c_gra2:
+                # Gráfico de Barras para Plataformas
+                fig_bar = px.bar(ds.groupby('Plataforma Venta')['Ganancia Neta'].sum().reset_index(), 
+                                 x='Plataforma Venta', y='Ganancia Neta', title='Beneficio por Plataforma', color='Plataforma Venta')
+                st.plotly_chart(fig_bar, use_container_width=True)
