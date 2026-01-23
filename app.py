@@ -13,7 +13,7 @@ import plotly.express as px
 LINK_APP = "https://vinchy-zapas.streamlit.app"
 LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
 
-st.set_page_config(page_title="Vinchy Zapas V64", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V65", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -44,9 +44,9 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.markdown('<p class="version-text">VERSIÓN 64</p>', unsafe_allow_html=True)
+    st.markdown('<p class="version-text">VERSIÓN 65 (MANUAL)</p>', unsafe_allow_html=True)
     st.image(LOGO_URL, width=80)
-    with st.form("login_v64"):
+    with st.form("login_v65"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -62,24 +62,28 @@ def obtener_libro_google():
         return client.open("inventario_zapatillas")
     except: return None
 
-# --- LA REGLA DEL 100 (SOLUCIÓN DRASTICA) ---
-def leer_numero_forzado(valor):
+# --- LECTURA LITERAL (SIN MAGIA) ---
+def leer_numero_literal(valor):
+    """
+    Lee el número tal cual. 
+    Solo arregla el formato técnico (coma por punto) para que Python no falle.
+    NO DIVIDE NI MULTIPLICA.
+    """
     if pd.isna(valor) or str(valor).strip() == "": return 0.0
     try:
-        # 1. Limpiar a float puro
+        # Quitamos símbolo €
         txt = str(valor).replace("€", "").strip()
-        # Si tiene punto de miles (ej: 3.075), lo quitamos
-        if "." in txt and len(txt) > 5: txt = txt.replace(".", "")
-        # Cambiamos la coma decimal por punto
+        
+        # Si tiene puntos de miles (ej: 1.200), los quitamos con cuidado
+        # Solo si hay un punto y luego 3 digitos y NO hay coma
+        if txt.count(".") == 1 and "," not in txt:
+            # Riesgo: 36.5 vs 1.000. Asumimos decimal si es pequeño (<1000)
+            pass 
+            
+        # Lo más seguro: Reemplazar coma por punto decimal
         txt = txt.replace(",", ".")
-        v = float(txt)
         
-        # 2. APLICAR DIVISIÓN SI ES GRANDE
-        # Si es mayor de 200, asumimos que está multiplicado por 100
-        if v > 200: 
-            return v / 100
-        
-        return v
+        return float(txt)
     except: return 0.0
 
 def arreglar_talla(valor):
@@ -101,14 +105,15 @@ def cargar_datos_zapas():
         for c in cols: 
             if c not in df.columns: df[c] = ""
             
-        # APLICAMOS LA DIVISIÓN FORZADA AQUÍ
+        # LECTURA LITERAL
         for c in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
-            df[c] = df[c].apply(leer_numero_forzado)
+            df[c] = df[c].apply(leer_numero_literal)
 
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
         df['Talla'] = df['Talla'].apply(arreglar_talla)
         df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
         df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
+        
         df['🌐 Web'] = "https://www.google.com/search?q=" + df['Marca'].astype(str) + "+" + df['Modelo'].astype(str) + "+precio"
         return df
     except: return pd.DataFrame()
@@ -121,8 +126,8 @@ def guardar_datos_zapas(df):
         if '🌐 Web' in dfs.columns: dfs = dfs.drop(columns=['🌐 Web'])
         if 'T_Num' in dfs.columns: dfs = dfs.drop(columns=['T_Num'])
         
-        # AL GUARDAR, NO TOCAMOS NADA (Ya lo hemos arreglado al leer)
-        # Solo aseguramos que vaya como número float puro
+        # GUARDAR COMO NÚMERO PURO (FLOAT)
+        # Google Sheets decidirá si pone coma o punto según tu configuración regional
         for col in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
             dfs[col] = dfs[col].fillna(0.0).astype(float)
             
@@ -134,7 +139,6 @@ def guardar_datos_zapas(df):
         sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
         st.cache_data.clear()
 
-# --- TRACKING ---
 def cargar_trackings():
     libro = obtener_libro_google()
     if not libro: return pd.DataFrame(columns=["Alias", "Tracking", "Fecha"])
@@ -246,7 +250,7 @@ elif st.session_state['seccion_actual'] == "Nuevo":
         if st.form_submit_button("GUARDAR EN STOCK"):
             if not mod or not mf: st.error("Falta Marca/Modelo")
             else:
-                p = leer_numero_forzado(pr); nid = 1 if df.empty else df['ID'].max()+1
+                p = leer_numero_literal(pr); nid = 1 if df.empty else df['ID'].max()+1
                 nuevas = []
                 for i in range(cant):
                     nuevas.append({"ID":nid+i, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":mf, "Modelo":mod, "Talla":arreglar_talla(ta), "Tienda Origen":tf, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":p, "Precio Venta":0.0, "Estado":"En Stock", "Ganancia Neta":0.0, "ROI %":0.0, "Tracking":""})
@@ -267,7 +271,7 @@ elif st.session_state['seccion_actual'] == "Vender":
         c1.metric("Talla", row['Talla']); c2.metric("Tienda", row['Tienda Origen']); c3.metric("Coste", f"{row['Precio Compra']:.2f}€".replace(".", ","))
         st.divider()
         pv_txt = st.text_input("Precio Venta (€)", placeholder="100,50")
-        pv = leer_numero_forzado(pv_txt); gan = pv - row['Precio Compra']
+        pv = leer_numero_literal(pv_txt); gan = pv - row['Precio Compra']
         if pv > 0: st.markdown(f"#### 💰 Ganancia: <span style='color:{'green' if gan>0 else 'red'}'>{gan:.2f} €</span>", unsafe_allow_html=True)
         with st.form("fv"):
             c3,c4 = st.columns(2); pl = c3.selectbox("Plataforma",["Vinted","Wallapop","StockX","En Persona","Otro"]); cu = c4.text_input("Cuenta")
@@ -280,6 +284,7 @@ elif st.session_state['seccion_actual'] == "Vender":
 # --- HISTORIAL ---
 elif st.session_state['seccion_actual'] == "Historial":
     st.title("📋 Historial")
+    st.info("💡 Haz clic en cualquier precio incorrecto y cámbialo a mano.")
     bus = st.text_input("🔍 Filtrar:", placeholder="Escribe...")
     cri = st.selectbox("🔃 Ordenar:", ["Fecha Compra (Reciente)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Talla (Menor-Mayor)", "Talla (Mayor-Menor)"])
     df_v = df.copy()
@@ -297,14 +302,14 @@ elif st.session_state['seccion_actual'] == "Historial":
     col_cfg = {
         "ID": st.column_config.NumberColumn(disabled=True, width="small"),
         "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"),
-        # VISUALIZACIÓN AMIGABLE
-        "Precio Compra": st.column_config.NumberColumn(format="%.2f €"),
-        "Precio Venta": st.column_config.NumberColumn(format="%.2f €"),
-        "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €", disabled=True),
+        # VISUALIZACIÓN NÚMERO PURO (sin € para evitar líos visuales en edición)
+        "Precio Compra": st.column_config.NumberColumn(format="%.2f"),
+        "Precio Venta": st.column_config.NumberColumn(format="%.2f"),
+        "Ganancia Neta": st.column_config.NumberColumn(format="%.2f", disabled=True),
         "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev64")
+    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev65")
     if not df.equals(df_ed):
         df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num'], errors='ignore')
         df_ag['Ganancia Neta'] = df_ag['Precio Venta'] - df_ag['Precio Compra']
@@ -345,3 +350,4 @@ elif st.session_state['seccion_actual'] == "Finanzas":
             with c_g2:
                 fig2 = px.bar(ds.groupby('Plataforma Venta')['Ganancia Neta'].sum().reset_index(), x='Plataforma Venta', y='Ganancia Neta', title='Por Plataforma', color='Plataforma Venta')
                 st.plotly_chart(fig2, use_container_width=True)
+
