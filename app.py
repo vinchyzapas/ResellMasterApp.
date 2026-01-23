@@ -5,9 +5,15 @@ import numpy as np
 import ssl
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import plotly.express as px
 
-# --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas V53", layout="wide", page_icon="👟")
+# ==========================================
+# 🔗 CONFIGURACIÓN
+# ==========================================
+LINK_APP = "https://vinchy-zapas.streamlit.app"
+LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
+
+st.set_page_config(page_title="Vinchy Zapas V70", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -19,20 +25,11 @@ st.markdown("""
         color: #000000 !important; background-color: #F0F2F6 !important; border: 1px solid #ccc;
     }
     div.stButton > button {
-        background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%;
-        padding: 12px; font-size: 16px;
+        background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%; padding: 12px; font-size: 16px;
     }
-    
-    /* ENLACES VISIBLES */
     a {color: #0000EE !important; font-weight: bold;}
-    
-    /* CÓDIGO QR Y ENLACE COMPARTIR */
-    code {
-        color: #000000 !important; 
-        background-color: #f0f0f0 !important;
-        font-weight: bold;
-        font-size: 14px;
-    }
+    div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
+    img {border-radius: 10px; margin-top: 5px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -46,8 +43,8 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.markdown("### Versión 53")
-    with st.form("login_v53"):
+    st.image(LOGO_URL, width=80)
+    with st.form("login_v70"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -63,14 +60,20 @@ def obtener_libro_google():
         return client.open("inventario_zapatillas")
     except: return None
 
-# --- GESTIÓN DATOS ---
-def forzar_numero(valor):
+# --- HERRAMIENTAS MATEMÁTICAS ---
+def limpiar_y_convertir(valor):
+    """Convierte cualquier cosa (texto con coma, número, etc) a un decimal puro"""
     if pd.isna(valor) or str(valor).strip() == "": return 0.0
     try:
-        v = float(str(valor).replace("€", "").replace(",", ".").strip())
-        if v > 1000: v = v/100
-        elif v > 150: v = v/10
-        return float(v)
+        # Si ya es número, devolvemos
+        if isinstance(valor, (int, float)): return float(valor)
+        
+        # Limpieza de texto
+        txt = str(valor).replace("€", "").strip()
+        # Cambiamos coma por punto (formato Python)
+        txt = txt.replace(",", ".")
+        
+        return float(txt)
     except: return 0.0
 
 def arreglar_talla(valor):
@@ -92,8 +95,16 @@ def cargar_datos_zapas():
         for c in cols: 
             if c not in df.columns: df[c] = ""
             
-        for c in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
-            df[c] = df[c].apply(forzar_numero)
+        # 1. CONVERTIR PRECIOS A NÚMEROS REALES
+        df['Precio Compra'] = df['Precio Compra'].apply(limpiar_y_convertir)
+        df['Precio Venta'] = df['Precio Venta'].apply(limpiar_y_convertir)
+        
+        # 2. RECÁLCULO FORZOSO DE GANANCIA (Aquí arreglamos el error)
+        # Ignoramos lo que venga del Excel y hacemos la resta matemática fresca
+        df['Ganancia Neta'] = df['Precio Venta'] - df['Precio Compra']
+        
+        # Si está en stock, ganancia es 0
+        df.loc[df['Estado'] == 'En Stock', 'Ganancia Neta'] = 0.0
 
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
         df['Talla'] = df['Talla'].apply(arreglar_talla)
@@ -114,8 +125,10 @@ def guardar_datos_zapas(df):
         if '🌐 Web' in dfs.columns: dfs = dfs.drop(columns=['🌐 Web'])
         if 'T_Num' in dfs.columns: dfs = dfs.drop(columns=['T_Num'])
         
+        # AL GUARDAR: Convertimos a texto con coma para que Excel lo vea bonito
         for col in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
             dfs[col] = dfs[col].apply(lambda x: f"{float(x):.2f}".replace(".", ",") if isinstance(x, (int, float)) else "0,00")
+            
         dfs['Fecha Compra'] = pd.to_datetime(dfs['Fecha Compra']).dt.strftime('%d/%m/%Y').replace("NaT", "")
         dfs['Fecha Venta'] = pd.to_datetime(dfs['Fecha Venta']).dt.strftime('%d/%m/%Y').replace("NaT", "")
         dfs = dfs.fillna("")
@@ -156,18 +169,20 @@ def obtener_listas(df):
 # ==========================================
 # INTERFAZ PRINCIPAL
 # ==========================================
+st.sidebar.image(LOGO_URL, width=100)
+st.sidebar.markdown("<h3 style='color: white; text-align: center;'>VINCHY ZAPAS</h3>", unsafe_allow_html=True)
+
 st.sidebar.title("Navegación")
 if st.sidebar.button("🏠 MENÚ PRINCIPAL", type="primary"):
     st.session_state['seccion_actual'] = "Inicio"
     st.rerun()
 st.sidebar.divider()
 
-# COMPARTIR CORREGIDO
 with st.sidebar.expander("📲 COMPARTIR APP"):
     st.write("**Tu enlace:**")
-    st.info("https://vinchy-zapas.streamlit.app") # Usamos st.info para que se vea azul y claro
-    st.write("**Escanea para abrir:**")
-    st.image("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://vinchy-zapas.streamlit.app")
+    st.code(LINK_APP)
+    st.write("**Escanea:**")
+    st.image(f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={LINK_APP}")
 
 st.sidebar.divider()
 if st.sidebar.button("🔒 Cerrar Sesión"): st.session_state['autenticado']=False; st.rerun()
@@ -177,7 +192,7 @@ list_m, list_t = obtener_listas(df)
 
 # --- INICIO ---
 if st.session_state['seccion_actual'] == "Inicio":
-    st.title("👟 Vinchy Zapas")
+    st.title("👟 Panel de Control")
     c1, c2 = st.columns(2)
     with c1:
         if st.button("➕ NUEVA COMPRA", use_container_width=True): st.session_state['seccion_actual'] = "Nuevo"; st.rerun()
@@ -235,7 +250,7 @@ elif st.session_state['seccion_actual'] == "Nuevo":
         if st.form_submit_button("GUARDAR EN STOCK"):
             if not mod or not mf: st.error("Falta Marca/Modelo")
             else:
-                p = forzar_numero(pr); nid = 1 if df.empty else df['ID'].max()+1
+                p = limpiar_y_convertir(pr); nid = 1 if df.empty else df['ID'].max()+1
                 nuevas = []
                 for i in range(cant):
                     nuevas.append({"ID":nid+i, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":mf, "Modelo":mod, "Talla":arreglar_talla(ta), "Tienda Origen":tf, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":p, "Precio Venta":0.0, "Estado":"En Stock", "Ganancia Neta":0.0, "ROI %":0.0, "Tracking":""})
@@ -256,7 +271,7 @@ elif st.session_state['seccion_actual'] == "Vender":
         c1.metric("Talla", row['Talla']); c2.metric("Tienda", row['Tienda Origen']); c3.metric("Coste", f"{row['Precio Compra']:.2f}€".replace(".", ","))
         st.divider()
         pv_txt = st.text_input("Precio Venta (€)", placeholder="100,50")
-        pv = forzar_numero(pv_txt); gan = pv - row['Precio Compra']
+        pv = limpiar_y_convertir(pv_txt); gan = pv - row['Precio Compra']
         if pv > 0: st.markdown(f"#### 💰 Ganancia: <span style='color:{'green' if gan>0 else 'red'}'>{gan:.2f} €</span>", unsafe_allow_html=True)
         with st.form("fv"):
             c3,c4 = st.columns(2); pl = c3.selectbox("Plataforma",["Vinted","Wallapop","StockX","En Persona","Otro"]); cu = c4.text_input("Cuenta")
@@ -269,9 +284,9 @@ elif st.session_state['seccion_actual'] == "Vender":
 # --- HISTORIAL ---
 elif st.session_state['seccion_actual'] == "Historial":
     st.title("📋 Historial")
+    st.info("💡 Edita las celdas y pulsa ENTER. Los cálculos se arreglan solos.")
     bus = st.text_input("🔍 Filtrar:", placeholder="Escribe...")
-    cri = st.selectbox("🔃 Ordenar:", ["Fecha Compra (Reciente)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Talla (Menor a Mayor)", "Talla (Mayor a Menor)"])
-    
+    cri = st.selectbox("🔃 Ordenar:", ["Fecha Compra (Reciente)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Talla (Menor-Mayor)", "Talla (Mayor-Menor)"])
     df_v = df.copy()
     if bus: mask = df_v.astype(str).apply(lambda row: row.str.contains(bus, case=False).any(), axis=1); df_v = df_v[mask]
     
@@ -280,23 +295,27 @@ elif st.session_state['seccion_actual'] == "Historial":
     elif "Precio" in cri: df_v = df_v.sort_values(by="Precio Compra", ascending=True)
     elif "Talla" in cri: 
         df_v['T_Num'] = pd.to_numeric(df_v['Talla'], errors='coerce')
-        if "Menor a Mayor" in cri: df_v = df_v.sort_values(by="T_Num", ascending=True)
+        if "Menor-Mayor" in cri: df_v = df_v.sort_values(by="T_Num", ascending=True)
         else: df_v = df_v.sort_values(by="T_Num", ascending=False)
 
     cols_ord = ["ID", "🌐 Web", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", "Estado", "Tracking", "Fecha Compra", "Fecha Venta"]
     col_cfg = {
         "ID": st.column_config.NumberColumn(disabled=True, width="small"),
-        "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"), # ENLACE VISIBLE
+        "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"),
+        # VISUALIZACIÓN: Usamos formato numérico estándar de la tabla
         "Precio Compra": st.column_config.NumberColumn(format="%.2f €"),
         "Precio Venta": st.column_config.NumberColumn(format="%.2f €"),
         "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €", disabled=True),
         "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev53")
+    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev70")
     if not df.equals(df_ed):
         df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num'], errors='ignore')
+        
+        # RECÁLCULO FORZOSO AL EDITAR MANUALMENTE TAMBIÉN
         df_ag['Ganancia Neta'] = df_ag['Precio Venta'] - df_ag['Precio Compra']
+        
         df_ag['Talla'] = df_ag['Talla'].apply(arreglar_talla)
         df.update(df_ag); guardar_datos_zapas(df); st.toast("✅ Guardado")
 
@@ -325,3 +344,14 @@ elif st.session_state['seccion_actual'] == "Finanzas":
         g1.metric("Total", f"{ds['Ganancia Neta'].sum():.2f} €".replace(".", ","))
         g2.metric("Stock", f"{dk['Precio Compra'].sum():.2f} €".replace(".", ","))
         g3.metric("Pares", len(dk)); g4.metric("Vendidos", len(ds))
+        
+        # --- GRÁFICOS ---
+        st.divider()
+        if not ds.empty:
+            c_g1, c_g2 = st.columns(2)
+            with c_g1: 
+                fig = px.pie(ds, names='Marca', values='Ganancia Neta', title='Ganancia por Marca', hole=0.4)
+                st.plotly_chart(fig, use_container_width=True)
+            with c_g2:
+                fig2 = px.bar(ds.groupby('Plataforma Venta')['Ganancia Neta'].sum().reset_index(), x='Plataforma Venta', y='Ganancia Neta', title='Por Plataforma', color='Plataforma Venta')
+                st.plotly_chart(fig2, use_container_width=True)
