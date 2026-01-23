@@ -13,7 +13,7 @@ import plotly.express as px
 LINK_APP = "https://vinchy-zapas.streamlit.app"
 LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
 
-st.set_page_config(page_title="Vinchy Zapas V67", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V69", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -44,9 +44,9 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.markdown('<p class="version-text">VERSIÓN 67 (TEXTO PURO)</p>', unsafe_allow_html=True)
+    st.markdown('<p class="version-text">VERSIÓN 69 (UNIVERSAL)</p>', unsafe_allow_html=True)
     st.image(LOGO_URL, width=80)
-    with st.form("login_v67"):
+    with st.form("login_v69"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -62,24 +62,34 @@ def obtener_libro_google():
         return client.open("inventario_zapatillas")
     except: return None
 
-# --- HERRAMIENTAS DE CONVERSIÓN (TEXTO <-> NUMERO) ---
-def text_to_float(texto):
-    """Convierte '45,50' a 45.5 para calcular"""
+# --- TRADUCTOR UNIVERSAL DE NÚMEROS ---
+def text_to_float_universal(texto):
+    """
+    Entiende 37,5 y 37.5 como el mismo número.
+    Entiende 1.200,50 correctamente.
+    """
     if pd.isna(texto) or str(texto).strip() == "": return 0.0
     try:
-        # Quitamos € y puntos de miles si los hubiera
-        limpio = str(texto).replace("€", "").replace(".", "").strip()
-        # La coma es el decimal
-        limpio = limpio.replace(",", ".")
-        return float(limpio)
+        # Limpiamos símbolo de moneda
+        t = str(texto).replace("€", "").strip()
+        
+        # CASO 1: Formato español completo (1.200,50) -> Tiene punto Y coma
+        if "." in t and "," in t:
+            t = t.replace(".", "") # Quitamos punto de miles
+            t = t.replace(",", ".") # Coma es decimal
+            
+        # CASO 2: Solo tiene coma (37,5)
+        elif "," in t:
+            t = t.replace(",", ".")
+            
+        # CASO 3: Solo tiene punto (37.5) -> Python lo entiende directo, no hacemos nada
+        
+        return float(t)
     except: return 0.0
 
-def float_to_text(numero):
-    """Convierte 45.5 a '45,50' para mostrar"""
+def float_to_text_save(numero):
+    """Guarda siempre bonito: 37,50"""
     try:
-        if isinstance(numero, str): 
-            if "," in numero: return numero # Ya tiene formato coma
-            numero = float(numero)
         return f"{float(numero):.2f}".replace(".", ",")
     except: return "0,00"
 
@@ -102,9 +112,11 @@ def cargar_datos_zapas():
         for c in cols: 
             if c not in df.columns: df[c] = ""
             
-        # AQUÍ ESTÁ EL CAMBIO: Convertimos todo a TEXTO con COMA para el editor
+        # CONVERTIMOS A TEXTO VISUAL (Con coma)
         for c in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
-            df[c] = df[c].apply(lambda x: str(x).replace(".", ",") if isinstance(x, (int, float)) else str(x))
+            # Primero leemos el valor real usando el traductor universal
+            # Luego lo volvemos a convertir a texto con coma para que se vea bien en la tabla editable
+            df[c] = df[c].apply(lambda x: float_to_text_save(text_to_float_universal(x)))
 
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
         df['Talla'] = df['Talla'].apply(arreglar_talla)
@@ -122,9 +134,9 @@ def guardar_datos_zapas(df):
         dfs = df.copy()
         if '🌐 Web' in dfs.columns: dfs = dfs.drop(columns=['🌐 Web'])
         if 'T_Num' in dfs.columns: dfs = dfs.drop(columns=['T_Num'])
+        if 'P_Num' in dfs.columns: dfs = dfs.drop(columns=['P_Num'])
         
-        # Guardamos como TEXTO con COMA. Google Sheets lo entenderá bien en España.
-        # No convertimos a float para enviar, enviamos string "45,50"
+        # Guardamos como texto con coma
         for col in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
              dfs[col] = dfs[col].astype(str).str.replace(".", ",", regex=False)
 
@@ -247,11 +259,14 @@ elif st.session_state['seccion_actual'] == "Nuevo":
         if st.form_submit_button("GUARDAR EN STOCK"):
             if not mod or not mf: st.error("Falta Marca/Modelo")
             else:
-                p = text_to_float(pr); nid = 1 if df.empty else df['ID'].max()+1
+                # Usamos el traductor universal aquí también
+                p = text_to_float_universal(pr)
+                # Formateamos a texto para guardar
+                p_str = float_to_text_save(p)
+                
+                nid = 1 if df.empty else df['ID'].max()+1
                 nuevas = []
                 for i in range(cant):
-                    # Guardamos precio como texto con coma "45,50"
-                    p_str = float_to_text(p)
                     nuevas.append({"ID":nid+i, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":mf, "Modelo":mod, "Talla":arreglar_talla(ta), "Tienda Origen":tf, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":p_str, "Precio Venta":"0,00", "Estado":"En Stock", "Ganancia Neta":"0,00", "ROI %":0.0, "Tracking":""})
                 df = pd.concat([df, pd.DataFrame(nuevas)], ignore_index=True)
                 guardar_datos_zapas(df); st.session_state['ok']=True; st.rerun()
@@ -271,9 +286,9 @@ elif st.session_state['seccion_actual'] == "Vender":
         st.divider()
         pv_txt = st.text_input("Precio Venta (€)", placeholder="100,50")
         
-        # Cálculo en tiempo real
-        pv = text_to_float(pv_txt)
-        pc = text_to_float(row['Precio Compra'])
+        # Cálculos en tiempo real usando traductor universal
+        pv = text_to_float_universal(pv_txt)
+        pc = text_to_float_universal(row['Precio Compra'])
         gan = pv - pc
         
         if pv > 0: st.markdown(f"#### 💰 Ganancia: <span style='color:{'green' if gan>0 else 'red'}'>{gan:.2f} €</span>", unsafe_allow_html=True)
@@ -283,16 +298,16 @@ elif st.session_state['seccion_actual'] == "Vender":
             if st.form_submit_button("CONFIRMAR"):
                 idx=df.index[df['ID']==ids][0]
                 df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now()
-                df.at[idx,'Precio Venta']=float_to_text(pv)
+                df.at[idx,'Precio Venta']=float_to_text_save(pv)
                 df.at[idx,'Plataforma Venta']=pl; df.at[idx,'Cuenta Venta']=cu
-                df.at[idx,'Ganancia Neta']=float_to_text(gan)
+                df.at[idx,'Ganancia Neta']=float_to_text_save(gan)
                 df.at[idx,'Tracking']=tr
                 guardar_datos_zapas(df); st.balloons(); st.success(f"¡Vendido! +{gan:.2f}€"); st.rerun()
 
 # --- HISTORIAL ---
 elif st.session_state['seccion_actual'] == "Historial":
     st.title("📋 Historial")
-    st.info("💡 **Edición Manual:** Modifica los precios escribiendo (ej: 45,50) y pulsa ENTER. Streamlit no los tocará.")
+    st.info("💡 Edita las celdas y pulsa ENTER.")
     bus = st.text_input("🔍 Filtrar:", placeholder="Escribe...")
     cri = st.selectbox("🔃 Ordenar:", ["Fecha Compra (Reciente)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Talla (Menor-Mayor)", "Talla (Mayor-Menor)"])
     df_v = df.copy()
@@ -301,9 +316,8 @@ elif st.session_state['seccion_actual'] == "Historial":
     if "Reciente" in cri: df_v = df_v.sort_values(by="Fecha Compra", ascending=False)
     elif "Marca" in cri: df_v = df_v.sort_values(by="Marca", ascending=True)
     elif "Precio" in cri: 
-        # Ordenar precios convertidos a float temporalmente
-        df_v['P_temp'] = df_v['Precio Compra'].apply(text_to_float)
-        df_v = df_v.sort_values(by="P_temp", ascending=True)
+        df_v['P_Num'] = df_v['Precio Compra'].apply(text_to_float_universal)
+        df_v = df_v.sort_values(by="P_Num", ascending=True)
     elif "Talla" in cri: 
         df_v['T_Num'] = pd.to_numeric(df_v['Talla'], errors='coerce')
         if "Menor-Mayor" in cri: df_v = df_v.sort_values(by="T_Num", ascending=True)
@@ -313,25 +327,22 @@ elif st.session_state['seccion_actual'] == "Historial":
     col_cfg = {
         "ID": st.column_config.NumberColumn(disabled=True, width="small"),
         "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"),
-        # CAMBIO CRÍTICO: TEXTCOLUMN PARA PRECIOS
+        # PRECIOS COMO TEXTCOLUMN (Editable libremente, acepta coma y punto)
         "Precio Compra": st.column_config.TextColumn(),
         "Precio Venta": st.column_config.TextColumn(),
         "Ganancia Neta": st.column_config.TextColumn(disabled=True),
         "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev67")
-    
+    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev69")
     if not df.equals(df_ed):
-        df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num', 'P_temp'], errors='ignore')
-        
-        # RECALCULAR GANANCIA AL EDITAR
-        # Convertimos a float, restamos, y volvemos a texto
-        for idx, row in df_ag.iterrows():
-            pv = text_to_float(row['Precio Venta'])
-            pc = text_to_float(row['Precio Compra'])
+        df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num', 'P_Num'], errors='ignore')
+        # Recalcular ganancia al vuelo
+        for i, row in df_ag.iterrows():
+            pv = text_to_float_universal(row['Precio Venta'])
+            pc = text_to_float_universal(row['Precio Compra'])
             gan = pv - pc
-            df_ag.at[idx, 'Ganancia Neta'] = float_to_text(gan)
+            df_ag.at[i, 'Ganancia Neta'] = float_to_text_save(gan)
             
         df_ag['Talla'] = df_ag['Talla'].apply(arreglar_talla)
         df.update(df_ag); guardar_datos_zapas(df); st.toast("✅ Guardado")
@@ -345,10 +356,10 @@ elif st.session_state['seccion_actual'] == "Finanzas":
     c2.download_button("💰 Ventas CSV", df_x[df_x['Estado']=='Vendido'].to_csv(index=False).encode('utf-8-sig'), "ventas.csv", "text/csv")
     st.divider()
 
-    # Convertimos a números SOLO para calcular gráficas
+    # Convertimos a números SOLO para calcular
     df_calc = df.copy()
     for c in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
-        df_calc[c] = df_calc[c].apply(text_to_float)
+        df_calc[c] = df_calc[c].apply(text_to_float_universal)
 
     if not df_calc.empty:
         hoy = datetime.now()
