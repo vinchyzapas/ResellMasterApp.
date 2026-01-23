@@ -1,93 +1,357 @@
-ID	Marca	Modelo	Talla	Precio Compra	Precio Venta	Ganancia Neta	Estado	Tienda Origen	Plataforma Venta	Cuenta Venta	Fecha Compra	Fecha Venta	ROI %	Tracking
-70	Adidas	Sl72	36.5	30,75	0,00		En Stock	Asphatgold			20/01/2026		0	
-30	Adidas	Sl72 Marron	38.5	33,82	0,00		En Stock	Asos			20/01/2026		0	
-61	Adidas	Spezial	43	39,15	60,00	20,85	Vendido	Futbol Emotion	En Persona		20/01/2026	22/01/2026	0	
-45	Adidas	Bodys	M	24,00	0,00		En Stock	Wowconcept			20/01/2026		0	
-5	Adidas	Sl72	37	24,00	0,00		En Stock	Asphatgold			20/01/2026		0	
-15	Adidas	Predator Slaa	36.5	14,40	0,00		En Stock	Asos			20/01/2026		0	
-27	Adidas	Samba Og	36	33,30	0,00		En Stock	Asphatgold			20/01/2026		0	
-13	Adidas	Predator Sala	38.5	14,40	0,00		En Stock	Asos			20/01/2026		0	
-31	Adidas	Adizero Adios 9	40	39,60	65,00	25,40	Vendido	Asphatgold	Vinted	Rigo 	20/01/2026	21/01/2026	0	
-16	Adidas	Predator Sala	42	14,40	0,00		En Stock	Asos			20/01/2026		0	
-14	Adidas	Predator Sala	38	14,40	20,00	56,00	Vendido	Asos	Otro		20/01/2026	21/01/2026	0	
-35	Adidas	Sl72 Vaca	37	45,05	0,00		En Stock	Asos			20/01/2026		0	
-46	Adidas	Sl72	38	33,82	58,00	24,18	Vendido	Asos	Vinted	Tablet	20/01/2026	20/01/2026	-8744588745	
-34	Adidas	Sal72 Vaca	40	45,05	0,00		En Stock	Asos			20/01/2026		0	
-3	Adidas	Campus	36	32,40	0,00		En Stock	Footdistrict			20/01/2026		0	
-37	Asics	Kayano 14	37.5	47,70	0,00		En Stock	Asphatgold			20/01/2026		0	
-2	Asics	1130 Mujer	37	43,20	0,00		En Stock	Footdistrict			20/01/2026		0	
-36	Asics	Gt2160	37	35,00	0,00		En Stock	Asics			20/01/2026		0	
-66	Asics	Trabuco 2	44	40,39	0,00		En Stock	Amazon			20/01/2026		0	
-68	Asics	Trail Scout	40.5	25,00	30,00	50,00	Vendido		Wallapop	Vane	20/01/2026	22/01/2026	0	
-77	Autry	Dallas	37	55,80	0,00		En Stock	Asphatgold			20/01/2026		0	
-1	Autry	Medallist	37	50,40	78,00	27,60	Vendido	Asphatgold	Vinted	Fon	20/01/2026	20/01/2026	0	
-81	Birkenstock	Arizona Talla 40	40	39,50	0,00		En Stock	Fundgrube			20/01/2026		0	
-83	Birkenstock	Kairo	39	36,84	0,00		En Stock	Amazon			20/01/2026		0	
-80	Birkenstock	Arizona Marrón	37	40,29	0,00		En Stock	Fundgrube			20/01/2026		0	
-84	Birkenstock	Arizona Dorado	35	37,75	0,00		En Stock	Fundgrube			20/01/2026		0	
-88	Birkenstock	Gizeh	35	25,55	0,00		En Stock	Primeriti			20/01/2026		0	
-86	Birkenstock	Boston	36	40,00	0,00		En Stock	Primeriti			20/01/2026		0	
-82	Birkenstock	Arizona Marron	39	39,50	0,00		En Stock	Fundgrube			20/01/2026		0	
-85	Birkenstock	Arizona	36	46,00	0,00		En Stock	Fundgrube			20/01/2026		0	
-17	Calvin Klein	Cupsole	43	20,00	0,00		En Stock	Asos			20/01/2026		0	
-19	Calvin Klein	Cupsole	46	20,00	0,00		En Stock	Privalia			20/01/2026		0	
-18	Calvin Klein	Cupsole	44	20,00	45,00	25,00	Vendido	Asos	Vinted	Fon	20/01/2026	22/01/2026	0	
-49	Calvin Klein	Cupsole	40	24,95	0,00		En Stock	Asos			20/01/2026		0	
-79	Crocs	Saru	39	20,00	0,00		En Stock	Asphaltgold			20/01/2026		0	
-40	Crocs	Classic	40	31,12	0,00		En Stock	Asphatgold			20/01/2026		0	
-87	Fred Perry	Classic	39	39,00	0,00		En Stock	Primeriti			20/01/2026		0	
-6	Hoka	One9	41	48,00	0,00		En Stock	Asphatgold			20/01/2026		0	
-72	Hoka	Clifton 9	39	50,00	0,00		En Stock	Footlocker			20/01/2026		0	
-28	Hoka	Restore	44	35,10	0,00		En Stock	Asphatgold			20/01/2026		0	
-65	Hoka	Clifton Ls	38.5	52,34	0,00		En Stock	Footlocker			20/01/2026		0	
-48	Lacoste	Baseshot Roland Garros	38	27,00	0,00		En Stock	Privalia			20/01/2026		0	
-47	Lacoste	Baseshot	37	27,00	0,00		En Stock	Privalia			20/01/2026		0	
-53	Lscoste	Baseshot Pro	38	32,40	0,00		En Stock	Asphatgold			20/01/2026		0	
-56	Merrell	Deverta	34	34,00	0,00		En Stock	Privalia			20/01/2026		0	
-25	Merrell	Deverta 2	37.5	22,00	0,00		En Stock	Privalia			20/01/2026		0	
-57	Merrell	Vapor 6	40.5	44,00	0,00		En Stock	Privalia			20/01/2026		0	
-58	Merrell	Vapor 7	40	44,00	0,00		En Stock	Privalia			20/01/2026		0	
-26	Merrell	Deverta 2	40	22,00	44,00	22,00	Vendido	Privalia	Vinted	Oskiki	20/01/2026	21/01/2026	0	
-55	Merrell	Deverta 2	46	37,00	52,00	15,00	Vendido	Privalia	Vinted	Rigo	20/01/2026	21/01/2026	0	
-12	New Balance	740	37.5	41,00	0,00		En Stock	Sneakeesnuff			20/01/2026		0	
-54	New Balance	740	39.5	47,25	0,00		En Stock	Asphatgold			20/01/2026		0	
-63	New Balance	1000	38.5	39,50	0,00		En Stock	Footlocker			20/01/2026		0	
-62	New Balance	1000	38	37,00	0,00		En Stock	Footlocker			20/01/2026		0	
-67	New Balance	327 Leopard	43	31,20	0,00		En Stock	Asos			20/01/2026		0	
-59	New Balance	1000		45,90	0,00		En Stock	Footlocker			20/01/2026		0	
-73	New Balance	327 Leopard	43	33,20	0,00		En Stock	Asos			20/01/2026		0	
-64	New Balance	1000	38	39,50	0,00		En Stock	Footlocker			20/01/2026		0	
-44	Nike	Air Max 180	40	48,30	0,00		En Stock	Asphatgold			20/01/2026		0	
-10	Nike	T90	40	23,20	0,00		En Stock	Asos			20/01/2026		0	
-9	Nike	T90	38.5	23,20	0,00		En Stock	Asos			20/01/2026		0	
-33	Nike	Cortez	38	25,00	0,00		En Stock	Amazon			20/01/2026		0	
-29	Nike	Dunk Low	47	36,00	53,60	17,60	Vendido	Asphatgold	StockX		20/01/2026	21/01/2026	0	
-38	Nike	Air Max 90	48.5	46,80	0,00		En Stock	Asphatgold			20/01/2026		0	
-51	On Running	Cloudnova	39	37,50	0,00		En Stock	Asos			20/01/2026		0	
-60	Pleasures	Camisa	Xxl	24,05	0,00		En Stock	Nigramercato			20/01/2026		0	
-69	Puna	Speedcat	37	33,00	0,00		En Stock	Nigramercato			20/01/2026		0	
-11	Puna	Speedcat Bailarinas	40	13,00	0,00		En Stock	Footlocker			20/01/2026		0	
-50	Ralph Lauren	Azul Marino	40	33,75	0,00		En Stock	Asos			20/01/2026		0	
-4	Salomon	Advance	36.5	51,00	0,00		En Stock	Footdistrict			20/01/2026		0	
-20	The North Face	Chaqueta Reversible	M Niño	28,00	0,00		En Stock	Primeriti			20/01/2026		0	
-21	The North Face	Mule Thermoball	36	12,00	0,00		En Stock	Prineriti			20/01/2026		0	
-22	The North Face	Trailnrunning		26,00	0,00		En Stock	Primeriti			20/01/2026		0	
-24	The North Face	Hybrid	M	30,00	0,00		En Stock	Primeriti			20/01/2026		0	
-23	The North Face	Vectiv	36.5	33,00	0,00		En Stock	Prineriti			20/01/2026		0	
-76	Vans	Hylane	36.5	14,75	0,00		En Stock	Privalia			20/01/2026		0	
-75	Vans	Hylane	38	14,75	0,00		En Stock	Privalia			20/01/2026		0	
-74	Vans	Hylane	38	13,00	0,00		En Stock	Privalia			20/01/2026		0	
-78	Veja	Fitz Roy	38	30,00	0,00		En Stock	Asphaltgold			20/01/2026		0	
-42	Veja	Volley		29,40	0,00		En Stock	Asphatgold			20/01/2026		0	
-52	Veja	Volley	37	37,80	0,00		En Stock	Asphatgold			20/01/2026		0	
-43	Veja	Volley		29,40	0,00		En Stock	Asphatgold			20/01/2026		0	
-41	Veja	Volley		29,40	0,00		En Stock	Asphatgold			20/01/2026		0	
-32	Veja	V-90	37	42,30	0,00		En Stock	Asphatgold			20/01/2026		0	
-71	Veja	Rio Branco	36	39,75	0,00		En Stock	Asphatgold			20/01/2026		0	
-8	Veja	Campo		35,25	0,00		En Stock	Asphatgold			20/01/2026		0	
-7	Veja	Campo		35,25	0,00		En Stock	Asphatgold			20/01/2026		0	
-89	Buffalo	Cloud Echo	38	30,65	0,00		En Stock	Asos			22/01/2026		0	
-90	Buffalo	Cloud Echo	39	30,65	0,00		En Stock	Asos			22/01/2026		0	
-91	Nike	Dunknlow	50	26,50	0,00		En Stock	Privalia			23/01/2026		0	
-92	Nike	Metcon 9	49.5	16,50	0,00		En Stock	Privalia			23/01/2026		0	
-93	Jordan	Jordan 1 low 	49.50	31,00	0,00		En Stock	Privalia			23/01/2026		0	
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+import numpy as np
+import ssl
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import plotly.express as px
+
+# ==========================================
+# 🔗 CONFIGURACIÓN
+# ==========================================
+LINK_APP = "https://vinchy-zapas.streamlit.app"
+LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
+
+st.set_page_config(page_title="Vinchy Zapas V70", layout="wide", page_icon="👟")
+
+# --- 🎨 ESTILO VISUAL ---
+st.markdown("""
+<style>
+    .stApp {background-color: #FFFFFF; color: #000000;}
+    section[data-testid="stSidebar"] {background-color: #111111;}
+    section[data-testid="stSidebar"] * {color: #FFFFFF !important;}
+    .stTextInput input, .stNumberInput input, .stSelectbox div {
+        color: #000000 !important; background-color: #F0F2F6 !important; border: 1px solid #ccc;
+    }
+    div.stButton > button {
+        background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%; padding: 12px; font-size: 16px;
+    }
+    a {color: #0000EE !important; font-weight: bold;}
+    div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
+    img {border-radius: 10px; margin-top: 5px;}
+</style>
+""", unsafe_allow_html=True)
+
+# --- LISTAS BASE ---
+BASES_MARCAS = ["Adidas", "Nike", "Hoka", "Salomon", "Calvin Klein", "Asics", "New Balance", "Merrell"]
+BASES_TIENDAS = ["Asos", "Asphaltgold", "Privalia", "Amazon", "Sneakersnuff", "Footlocker", "Zalando", "Vinted"]
+
+# --- LOGIN ---
+if 'autenticado' not in st.session_state: st.session_state['autenticado'] = False
+if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] = "Inicio"
+
+if not st.session_state['autenticado']:
+    st.title("🔒 Acceso Vinchy Zapas")
+    st.image(LOGO_URL, width=80)
+    with st.form("login_v70"):
+        pin = st.text_input("PIN:", type="password")
+        if st.form_submit_button("ENTRAR AL SISTEMA"):
+            if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
+            else: st.error("🚫 PIN Incorrecto")
+    st.stop()
+
+# --- CONEXIÓN ---
+def obtener_libro_google():
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
+        client = gspread.authorize(creds)
+        return client.open("inventario_zapatillas")
+    except: return None
+
+# --- HERRAMIENTAS MATEMÁTICAS ---
+def limpiar_y_convertir(valor):
+    """Convierte cualquier cosa (texto con coma, número, etc) a un decimal puro"""
+    if pd.isna(valor) or str(valor).strip() == "": return 0.0
+    try:
+        # Si ya es número, devolvemos
+        if isinstance(valor, (int, float)): return float(valor)
+        
+        # Limpieza de texto
+        txt = str(valor).replace("€", "").strip()
+        # Cambiamos coma por punto (formato Python)
+        txt = txt.replace(",", ".")
+        
+        return float(txt)
+    except: return 0.0
+
+def arreglar_talla(valor):
+    v = str(valor).replace(".0", "").replace(",", ".").strip()
+    if len(v) == 3 and v.endswith("5") and "." not in v: return f"{v[:2]}.{v[2]}"
+    if v == "nan": return ""
+    return v
+
+@st.cache_data(ttl=5, show_spinner=False)
+def cargar_datos_zapas():
+    libro = obtener_libro_google()
+    if not libro: return pd.DataFrame()
+    try:
+        sheet = libro.sheet1
+        data = sheet.get_all_records()
+        df = pd.DataFrame(data)
+        cols = ["ID", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", 
+                "Estado", "Tienda Origen", "Plataforma Venta", "Cuenta Venta", "Fecha Compra", "Fecha Venta", "ROI %", "Tracking"]
+        for c in cols: 
+            if c not in df.columns: df[c] = ""
+            
+        # 1. CONVERTIR PRECIOS A NÚMEROS REALES
+        df['Precio Compra'] = df['Precio Compra'].apply(limpiar_y_convertir)
+        df['Precio Venta'] = df['Precio Venta'].apply(limpiar_y_convertir)
+        
+        # 2. RECÁLCULO FORZOSO DE GANANCIA (Aquí arreglamos el error)
+        # Ignoramos lo que venga del Excel y hacemos la resta matemática fresca
+        df['Ganancia Neta'] = df['Precio Venta'] - df['Precio Compra']
+        
+        # Si está en stock, ganancia es 0
+        df.loc[df['Estado'] == 'En Stock', 'Ganancia Neta'] = 0.0
+
+        df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
+        df['Talla'] = df['Talla'].apply(arreglar_talla)
+        df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
+        df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
+        
+        # Enlace Web visible
+        df['🌐 Web'] = "https://www.google.com/search?q=" + df['Marca'].astype(str) + "+" + df['Modelo'].astype(str) + "+precio"
+        
+        return df
+    except: return pd.DataFrame()
+
+def guardar_datos_zapas(df):
+    libro = obtener_libro_google()
+    if libro:
+        sheet = libro.sheet1
+        dfs = df.copy()
+        if '🌐 Web' in dfs.columns: dfs = dfs.drop(columns=['🌐 Web'])
+        if 'T_Num' in dfs.columns: dfs = dfs.drop(columns=['T_Num'])
+        
+        # AL GUARDAR: Convertimos a texto con coma para que Excel lo vea bonito
+        for col in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
+            dfs[col] = dfs[col].apply(lambda x: f"{float(x):.2f}".replace(".", ",") if isinstance(x, (int, float)) else "0,00")
+            
+        dfs['Fecha Compra'] = pd.to_datetime(dfs['Fecha Compra']).dt.strftime('%d/%m/%Y').replace("NaT", "")
+        dfs['Fecha Venta'] = pd.to_datetime(dfs['Fecha Venta']).dt.strftime('%d/%m/%Y').replace("NaT", "")
+        dfs = dfs.fillna("")
+        sheet.clear()
+        sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
+        st.cache_data.clear()
+
+def cargar_trackings():
+    libro = obtener_libro_google()
+    if not libro: return pd.DataFrame(columns=["Alias", "Tracking", "Fecha"])
+    try: sheet = libro.worksheet("trackings")
+    except: 
+        sheet = libro.add_worksheet(title="trackings", rows=100, cols=3)
+        sheet.append_row(["Alias", "Tracking", "Fecha"])
+    return pd.DataFrame(sheet.get_all_records())
+
+def guardar_tracking_nuevo(alias, codigo):
+    libro = obtener_libro_google()
+    if libro:
+        try: sheet = libro.worksheet("trackings")
+        except: sheet = libro.add_worksheet("trackings", 100, 3)
+        sheet.append_row([alias, codigo, datetime.now().strftime("%d/%m/%Y")])
+
+def borrar_tracking(codigo):
+    libro = obtener_libro_google()
+    if libro:
+        sheet = libro.worksheet("trackings")
+        df = pd.DataFrame(sheet.get_all_records())
+        df_new = df[df['Tracking'].astype(str) != str(codigo)]
+        sheet.clear()
+        sheet.update([df_new.columns.values.tolist()] + df_new.values.tolist())
+
+def obtener_listas(df):
+    m = sorted(list(set(BASES_MARCAS + (df['Marca'].unique().tolist() if not df.empty else []))))
+    t = sorted(list(set(BASES_TIENDAS + (df['Tienda Origen'].unique().tolist() if not df.empty else []))))
+    return [x for x in m if str(x).strip() not in ["","nan"]], [x for x in t if str(x).strip() not in ["","nan"]]
+
+# ==========================================
+# INTERFAZ PRINCIPAL
+# ==========================================
+st.sidebar.image(LOGO_URL, width=100)
+st.sidebar.markdown("<h3 style='color: white; text-align: center;'>VINCHY ZAPAS</h3>", unsafe_allow_html=True)
+
+st.sidebar.title("Navegación")
+if st.sidebar.button("🏠 MENÚ PRINCIPAL", type="primary"):
+    st.session_state['seccion_actual'] = "Inicio"
+    st.rerun()
+st.sidebar.divider()
+
+with st.sidebar.expander("📲 COMPARTIR APP"):
+    st.write("**Tu enlace:**")
+    st.code(LINK_APP)
+    st.write("**Escanea:**")
+    st.image(f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={LINK_APP}")
+
+st.sidebar.divider()
+if st.sidebar.button("🔒 Cerrar Sesión"): st.session_state['autenticado']=False; st.rerun()
+
+df = cargar_datos_zapas()
+list_m, list_t = obtener_listas(df)
+
+# --- INICIO ---
+if st.session_state['seccion_actual'] == "Inicio":
+    st.title("👟 Panel de Control")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("➕ NUEVA COMPRA", use_container_width=True): st.session_state['seccion_actual'] = "Nuevo"; st.rerun()
+        st.write("")
+        if st.button("📋 HISTORIAL", use_container_width=True): st.session_state['seccion_actual'] = "Historial"; st.rerun()
+        st.write("")
+        if st.button("🚚 ENVÍOS", use_container_width=True): st.session_state['seccion_actual'] = "Trackings"; st.rerun()
+    with c2:
+        if st.button("💸 VENDER", use_container_width=True): st.session_state['seccion_actual'] = "Vender"; st.rerun()
+        st.write("")
+        if st.button("📊 FINANZAS", use_container_width=True): st.session_state['seccion_actual'] = "Finanzas"; st.rerun()
+
+# --- TRACKINGS ---
+elif st.session_state['seccion_actual'] == "Trackings":
+    st.title("🚚 Paquetes en Camino")
+    if "t_alias" not in st.session_state: st.session_state.t_alias = ""
+    if "t_code" not in st.session_state: st.session_state.t_code = ""
+    with st.form("form_track"):
+        c1, c2 = st.columns(2)
+        alias = c1.text_input("Alias / Tienda", key="t_alias", placeholder="Ej: Pedido Nike")
+        track_num = c2.text_input("Nº Seguimiento", key="t_code")
+        if st.form_submit_button("AÑADIR SEGUIMIENTO"):
+            if alias and track_num:
+                guardar_tracking_nuevo(alias, track_num)
+                st.session_state.t_alias = ""; st.session_state.t_code = ""; st.toast("✅ Guardado"); st.rerun()
+            else: st.error("Faltan datos")
+    st.divider()
+    df_t = cargar_trackings()
+    if not df_t.empty:
+        for i, r in df_t.iterrows():
+            with st.container():
+                c1, c2, c3 = st.columns([2, 1, 1])
+                c1.markdown(f"**{r['Alias']}**"); c1.caption(f"{r['Tracking']}")
+                c2.link_button("🔎 RASTREAR", f"https://t.17track.net/es#nums={r['Tracking']}")
+                if c3.button("🗑️", key=f"d_{i}"): borrar_tracking(r['Tracking']); st.rerun()
+                st.divider()
+    else: st.info("No hay paquetes pendientes.")
+
+# --- NUEVO ---
+elif st.session_state['seccion_actual'] == "Nuevo":
+    st.title("➕ Nueva Compra")
+    if 'ok' in st.session_state and st.session_state['ok']: st.success("✅ Guardado"); st.session_state['ok']=False
+    with st.form("f_new"):
+        c1, c2 = st.columns([1, 2])
+        ms = c1.selectbox("Marca", ["-"] + list_m); mt = c1.text_input("¿Nueva?", key="kmt")
+        mf = str(mt if mt else ms).strip().title()
+        if mf == "-": mf = ""
+        mod = c2.text_input("Modelo")
+        c3, c4, c5 = st.columns(3)
+        ts = c3.selectbox("Tienda", ["-"] + list_t); tt = c3.text_input("¿Nueva?", key="ktt")
+        tf = str(tt if tt else ts).strip().title()
+        if tf == "-": tf = ""
+        ta = c4.text_input("Talla"); pr = c5.text_input("Precio (€)", placeholder="45,50")
+        cant = st.number_input("📦 Cantidad", 1, 10, 1)
+        if st.form_submit_button("GUARDAR EN STOCK"):
+            if not mod or not mf: st.error("Falta Marca/Modelo")
+            else:
+                p = limpiar_y_convertir(pr); nid = 1 if df.empty else df['ID'].max()+1
+                nuevas = []
+                for i in range(cant):
+                    nuevas.append({"ID":nid+i, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":mf, "Modelo":mod, "Talla":arreglar_talla(ta), "Tienda Origen":tf, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":p, "Precio Venta":0.0, "Estado":"En Stock", "Ganancia Neta":0.0, "ROI %":0.0, "Tracking":""})
+                df = pd.concat([df, pd.DataFrame(nuevas)], ignore_index=True)
+                guardar_datos_zapas(df); st.session_state['ok']=True; st.rerun()
+
+# --- VENDER ---
+elif st.session_state['seccion_actual'] == "Vender":
+    st.title("💸 Vender")
+    dfs = df[df['Estado']=='En Stock'].copy()
+    opcs = ["-"] + dfs.apply(lambda x: f"ID:{x['ID']} | {x['Marca']} {x['Modelo']} ({x['Talla']})", axis=1).tolist()
+    sel = st.selectbox("Buscar zapatilla:", opcs)
+    if sel != "-":
+        ids = int(sel.split(" |")[0].replace("ID:",""))
+        row = df[df['ID']==ids].iloc[0]
+        st.markdown(f"### {row['Marca']} {row['Modelo']}")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Talla", row['Talla']); c2.metric("Tienda", row['Tienda Origen']); c3.metric("Coste", f"{row['Precio Compra']:.2f}€".replace(".", ","))
+        st.divider()
+        pv_txt = st.text_input("Precio Venta (€)", placeholder="100,50")
+        pv = limpiar_y_convertir(pv_txt); gan = pv - row['Precio Compra']
+        if pv > 0: st.markdown(f"#### 💰 Ganancia: <span style='color:{'green' if gan>0 else 'red'}'>{gan:.2f} €</span>", unsafe_allow_html=True)
+        with st.form("fv"):
+            c3,c4 = st.columns(2); pl = c3.selectbox("Plataforma",["Vinted","Wallapop","StockX","En Persona","Otro"]); cu = c4.text_input("Cuenta")
+            tr = st.text_input("🚚 Nº Seguimiento Venta (Opcional)")
+            if st.form_submit_button("CONFIRMAR"):
+                idx=df.index[df['ID']==ids][0]
+                df.at[idx,'Estado']='Vendido'; df.at[idx,'Fecha Venta']=datetime.now(); df.at[idx,'Precio Venta']=pv; df.at[idx,'Plataforma Venta']=pl; df.at[idx,'Cuenta Venta']=cu; df.at[idx,'Ganancia Neta']=gan; df.at[idx,'Tracking']=tr
+                guardar_datos_zapas(df); st.balloons(); st.success(f"¡Vendido! +{gan:.2f}€"); st.rerun()
+
+# --- HISTORIAL ---
+elif st.session_state['seccion_actual'] == "Historial":
+    st.title("📋 Historial")
+    st.info("💡 Edita las celdas y pulsa ENTER. Los cálculos se arreglan solos.")
+    bus = st.text_input("🔍 Filtrar:", placeholder="Escribe...")
+    cri = st.selectbox("🔃 Ordenar:", ["Fecha Compra (Reciente)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Talla (Menor-Mayor)", "Talla (Mayor-Menor)"])
+    df_v = df.copy()
+    if bus: mask = df_v.astype(str).apply(lambda row: row.str.contains(bus, case=False).any(), axis=1); df_v = df_v[mask]
+    
+    if "Reciente" in cri: df_v = df_v.sort_values(by="Fecha Compra", ascending=False)
+    elif "Marca" in cri: df_v = df_v.sort_values(by="Marca", ascending=True)
+    elif "Precio" in cri: df_v = df_v.sort_values(by="Precio Compra", ascending=True)
+    elif "Talla" in cri: 
+        df_v['T_Num'] = pd.to_numeric(df_v['Talla'], errors='coerce')
+        if "Menor-Mayor" in cri: df_v = df_v.sort_values(by="T_Num", ascending=True)
+        else: df_v = df_v.sort_values(by="T_Num", ascending=False)
+
+    cols_ord = ["ID", "🌐 Web", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", "Estado", "Tracking", "Fecha Compra", "Fecha Venta"]
+    col_cfg = {
+        "ID": st.column_config.NumberColumn(disabled=True, width="small"),
+        "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"),
+        # VISUALIZACIÓN: Usamos formato numérico estándar de la tabla
+        "Precio Compra": st.column_config.NumberColumn(format="%.2f €"),
+        "Precio Venta": st.column_config.NumberColumn(format="%.2f €"),
+        "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €", disabled=True),
+        "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
+        "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
+    }
+    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev70")
+    if not df.equals(df_ed):
+        df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num'], errors='ignore')
+        
+        # RECÁLCULO FORZOSO AL EDITAR MANUALMENTE TAMBIÉN
+        df_ag['Ganancia Neta'] = df_ag['Precio Venta'] - df_ag['Precio Compra']
+        
+        df_ag['Talla'] = df_ag['Talla'].apply(arreglar_talla)
+        df.update(df_ag); guardar_datos_zapas(df); st.toast("✅ Guardado")
+
+# --- FINANZAS ---
+elif st.session_state['seccion_actual'] == "Finanzas":
+    st.title("📊 Panel Financiero")
+    c1, c2 = st.columns(2)
+    df_x = df.drop(columns=['🌐 Web'], errors='ignore')
+    c1.download_button("📥 Stock CSV", df_x[df_x['Estado']=='En Stock'].to_csv(index=False).encode('utf-8-sig'), "stock.csv", "text/csv")
+    c2.download_button("💰 Ventas CSV", df_x[df_x['Estado']=='Vendido'].to_csv(index=False).encode('utf-8-sig'), "ventas.csv", "text/csv")
+    st.divider()
+    if not df.empty:
+        hoy = datetime.now()
+        ds = df[df['Estado']=='Vendido']; dk = df[df['Estado']=='En Stock']
+        mm_v = (ds['Fecha Venta'].dt.month == hoy.month) & (ds['Fecha Venta'].dt.year == hoy.year)
+        mm_c = (df['Fecha Compra'].dt.month == hoy.month) & (df['Fecha Compra'].dt.year == hoy.year)
+        vm = ds[mm_v].copy()
+        best = f"🏆 {vm.loc[vm['Ganancia Neta'].idxmax()]['Modelo']} (+{vm['Ganancia Neta'].max():.2f}€)" if not vm.empty else "-"
+        st.subheader(f"📅 {hoy.strftime('%B %Y')}"); st.info(best)
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Beneficio", f"{ds[mm_v]['Ganancia Neta'].sum():.2f} €".replace(".", ","))
+        m2.metric("Gasto", f"{df[mm_c]['Precio Compra'].sum():.2f} €".replace(".", ","))
+        m3.metric("Ventas", len(ds[mm_v])); m4.metric("Compras", len(df[mm_c]))
+        st.divider(); st.subheader("🌍 Global")
+        g1, g2, g3, g4 = st.columns(4)
+        g1.metric("Total", f"{ds['Ganancia Neta'].sum():.2f} €".replace(".", ","))
+        g2.metric("Stock", f"{dk['Precio Compra'].sum():.2f} €".replace(".", ","))
+        g3.metric("Pares", len(dk)); g4.metric("Vendidos", len(ds))
+        
+        # --- GRÁFICOS ---
+        st.divider()
+        if not ds.empty:
+            c_g1, c_g2 = st.columns(2)
+            with c_g1: 
+                fig = px.pie(ds, names='Marca', values='Ganancia Neta', title='Ganancia por Marca', hole=0.4)
+                st.plotly_chart(fig, use_container_width=True)
+            with c_g2:
+                fig2 = px.bar(ds.groupby('Plataforma Venta')['Ganancia Neta'].sum().reset_index(), x='Plataforma Venta', y='Ganancia Neta', title='Por Plataforma', color='Plataforma Venta')
+                st.plotly_chart(fig2, use_container_width=True)
