@@ -5,15 +5,17 @@ import numpy as np
 import ssl
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import plotly.express as px # LIBRERÍA GRÁFICA
 
 # ==========================================
-# 🔗 TU ENLACE CONFIGURADO
+# 🔗 TU ENLACE
 # ==========================================
 LINK_APP = "https://vinchy-zapas.streamlit.app"
+LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
 # ==========================================
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(page_title="Vinchy Zapas", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V60", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -29,8 +31,8 @@ st.markdown("""
         padding: 12px; font-size: 16px;
     }
     a {color: #0000EE !important; font-weight: bold;}
-    code {color: #000000 !important; background-color: #f0f0f0 !important; font-weight: bold; font-size: 14px;}
     div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
+    img {border-radius: 10px; margin-top: 10px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -44,7 +46,8 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
-    with st.form("login_final"):
+    st.image(LOGO_URL, width=80)
+    with st.form("login_v60"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -64,9 +67,9 @@ def obtener_libro_google():
 def forzar_numero(valor):
     if pd.isna(valor) or str(valor).strip() == "": return 0.0
     try:
+        # Aquí está la lógica que te funcionaba bien:
+        # Solo quita € y cambia coma por punto. NO divide nada.
         v = float(str(valor).replace("€", "").replace(",", ".").strip())
-        if v > 1000: v = v/100
-        elif v > 150: v = v/10
         return float(v)
     except: return 0.0
 
@@ -153,18 +156,16 @@ def obtener_listas(df):
 # ==========================================
 # INTERFAZ PRINCIPAL
 # ==========================================
+st.sidebar.image(LOGO_URL, width=100)
+st.sidebar.markdown("<h3 style='color: white; text-align: center;'>VINCHY ZAPAS</h3>", unsafe_allow_html=True)
+
 st.sidebar.title("Navegación")
 if st.sidebar.button("🏠 MENÚ PRINCIPAL", type="primary"):
     st.session_state['seccion_actual'] = "Inicio"
     st.rerun()
 st.sidebar.divider()
 
-# --- COMPARTIR ---
 with st.sidebar.expander("📲 COMPARTIR APP"):
-    st.write("**Tu enlace:**")
-    st.code(LINK_APP)
-    st.write("**Escanea:**")
-    # Genera QR con TU enlace
     st.image(f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={LINK_APP}")
 
 st.sidebar.divider()
@@ -175,7 +176,7 @@ list_m, list_t = obtener_listas(df)
 
 # --- INICIO ---
 if st.session_state['seccion_actual'] == "Inicio":
-    st.title("👟 Vinchy Zapas")
+    st.title("👟 Panel de Control")
     c1, c2 = st.columns(2)
     with c1:
         if st.button("➕ NUEVA COMPRA", use_container_width=True): st.session_state['seccion_actual'] = "Nuevo"; st.rerun()
@@ -290,7 +291,7 @@ elif st.session_state['seccion_actual'] == "Historial":
         "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev54")
+    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev59")
     if not df.equals(df_ed):
         df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num'], errors='ignore')
         df_ag['Ganancia Neta'] = df_ag['Precio Venta'] - df_ag['Precio Compra']
@@ -305,6 +306,7 @@ elif st.session_state['seccion_actual'] == "Finanzas":
     c1.download_button("📥 Stock CSV", df_x[df_x['Estado']=='En Stock'].to_csv(index=False).encode('utf-8-sig'), "stock.csv", "text/csv")
     c2.download_button("💰 Ventas CSV", df_x[df_x['Estado']=='Vendido'].to_csv(index=False).encode('utf-8-sig'), "ventas.csv", "text/csv")
     st.divider()
+
     if not df.empty:
         hoy = datetime.now()
         ds = df[df['Estado']=='Vendido']; dk = df[df['Estado']=='En Stock']
@@ -322,3 +324,16 @@ elif st.session_state['seccion_actual'] == "Finanzas":
         g1.metric("Total", f"{ds['Ganancia Neta'].sum():.2f} €".replace(".", ","))
         g2.metric("Stock", f"{dk['Precio Compra'].sum():.2f} €".replace(".", ","))
         g3.metric("Pares", len(dk)); g4.metric("Vendidos", len(ds))
+        
+        # --- GRÁFICOS (AQUÍ ESTÁN) ---
+        st.divider()
+        if not ds.empty:
+            c_g1, c_g2 = st.columns(2)
+            with c_g1: 
+                # Gráfico de quesito
+                fig = px.pie(ds, names='Marca', values='Ganancia Neta', title='Ganancia por Marca', hole=0.4)
+                st.plotly_chart(fig, use_container_width=True)
+            with c_g2:
+                # Gráfico de barras
+                fig2 = px.bar(ds.groupby('Plataforma Venta')['Ganancia Neta'].sum().reset_index(), x='Plataforma Venta', y='Ganancia Neta', title='Por Plataforma', color='Plataforma Venta')
+                st.plotly_chart(fig2, use_container_width=True)
