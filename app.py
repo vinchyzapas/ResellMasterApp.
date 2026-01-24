@@ -1,145 +1,256 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import time
 import gspread
-from google.oauth2.service_account import Credentials
+from oauth2client.service_account import ServiceAccountCredentials
+import plotly.express as px
 
-# ---------------- CONFIG ----------------
-st.set_page_config(page_title="Stock Zapatillas", layout="wide")
+# =====================================================
+# CONFIGURACIÓN GENERAL
+# =====================================================
+APP_TITLE = "Vinchy Zapas"
+LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
+SHEET_NAME = "inventario_zapatillas"
+PIN_CORRECTO = "1234"
 
-PIN = st.secrets["PIN_APP"]
+st.set_page_config(
+    page_title=APP_TITLE,
+    page_icon="👟",
+    layout="wide"
+)
 
-# ---------------- LOGIN ----------------
-if "auth" not in st.session_state:
-    st.session_state.auth = False
+# =====================================================
+# ESTILOS
+# =====================================================
+st.markdown("""
+<style>
+.stApp { background-color: #f5f6fa; }
+section[data-testid="stSidebar"] { background-color: #111; }
+section[data-testid="stSidebar"] * { color: white !important; }
+div.stButton > button {
+    background-color: #d32f2f;
+    color: white;
+    font-weight: bold;
+    border-radius: 8px;
+    padding: 10px;
+}
+div[data-testid="stMetricValue"] {
+    font-size: 24px;
+    color: #2e7d32;
+}
+</style>
+""", unsafe_allow_html=True)
 
-if not st.session_state.auth:
-    pin = st.text_input("Introduce PIN", type="password")
-    if st.button("Entrar"):
-        if pin == PIN:
-            st.session_state.auth = True
-            st.rerun()
-        else:
-            st.error("PIN incorrecto")
+# =====================================================
+# SESIÓN
+# =====================================================
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+if "seccion" not in st.session_state:
+    st.session_state.seccion = "Inicio"
+
+# =====================================================
+# LOGIN
+# =====================================================
+if not st.session_state.autenticado:
+    st.image(LOGO_URL, width=90)
+    st.title("VINCHY ZAPAS")
+    st.caption("Gestión de stock y reventa")
+
+    with st.form("login"):
+        pin = st.text_input("PIN de acceso", type="password")
+        if st.form_submit_button("ENTRAR"):
+            if pin == PIN_CORRECTO:
+                st.session_state.autenticado = True
+                st.rerun()
+            else:
+                st.error("PIN incorrecto")
+
     st.stop()
 
-# ---------------- GOOGLE SHEETS ----------------
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive"
-]
-creds = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"],
-    scopes=scope
-)
-client = gspread.authorize(creds)
-sheet = client.open("STOCK_ZAPATILLAS").sheet1
-
-# ---------------- FUNCIONES ----------------
-def texto_a_float(valor):
-    if valor is None or valor == "":
+# =====================================================
+# FUNCIONES ÚTILES
+# =====================================================
+def texto_a_float(v):
+    if pd.isna(v) or str(v).strip() == "":
         return 0.0
     try:
-        v = str(valor).replace("€", "").strip()
-        if "." in v and "," in v:
-            v = v.replace(".", "")
-        v = v.replace(",", ".")
-        return float(v)
+        return float(str(v).replace("€", "").replace(",", "."))
     except:
         return 0.0
 
-def float_a_texto(v):
-    return f"{v:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
+def float_a_texto(n):
+    try:
+        return f"{float(n):.2f}".replace(".", ",")
+    except:
+        return "0,00"
 
-def calcular_ganancia(estado, compra, venta):
-    if estado == "EN STOCK":
-        return -compra
-    else:
-        return venta - compra
-
-# ---------------- CARGA DATOS ----------------
-data = sheet.get_all_records()
-df = pd.DataFrame(data)
-
-if not df.empty:
-    df["Precio Compra (€)"] = df["Precio Compra (€)"].apply(texto_a_float)
-    df["Precio Venta (€)"] = df["Precio Venta (€)"].apply(texto_a_float)
-
-# ---------------- MENU ----------------
-menu = st.sidebar.radio(
-    "Menú",
-    ["Añadir", "Stock", "Vender", "Historial"]
-)
-
-# ---------------- AÑADIR ----------------
-if menu == "Añadir":
-    st.title("➕ Añadir zapatilla")
-
-    modelo = st.text_input("Modelo")
-    talla = st.text_input("Talla")
-    pc = st.number_input("Precio compra (€)", min_value=0.0, step=1.0)
-    web = st.text_input("Web / URL")
-
-    if st.button("Guardar"):
-        nueva = [
-            modelo,
-            talla,
-            float_a_texto(pc),
-            "",
-            float_a_texto(-pc),
-            "EN STOCK",
-            web,
-            datetime.now().strftime("%d/%m/%Y")
-        ]
-        sheet.append_row(nueva)
-        st.success("Zapatilla añadida")
-
-# ---------------- STOCK ----------------
-elif menu == "Stock":
-    st.title("📦 En stock")
-    st.dataframe(df[df["Estado"] == "EN STOCK"])
-
-# ---------------- VENDER ----------------
-elif menu == "Vender":
-    st.title("💰 Vender zapatilla")
-
-    stock = df[df["Estado"] == "EN STOCK"].copy()
-
-    stock["selector"] = (
-        stock["Modelo"] + " | Talla " + stock["Talla"].astype(str) +
-        " | Compra " + stock["Precio Compra (€)"].apply(lambda x: float_a_texto(x))
+# =====================================================
+# GOOGLE SHEETS
+# =====================================================
+def conectar_sheets():
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive"
+    ]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(
+        dict(st.secrets["gcp_service_account"]),
+        scope
     )
+    client = gspread.authorize(creds)
+    return client.open(SHEET_NAME).sheet1
 
-    opcion = st.selectbox("Selecciona zapatilla", stock["selector"])
+@st.cache_data(ttl=0)
+def cargar_datos():
+    sheet = conectar_sheets()
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    if df.empty:
+        df = pd.DataFrame(columns=[
+            "ID","Marca","Modelo","Talla","Precio Compra","Precio Venta",
+            "Ganancia Neta","Estado","Fecha Compra","Fecha Venta"
+        ])
+    df = df.astype(str).replace("nan", "")
+    df["ID"] = pd.to_numeric(df["ID"], errors="coerce").fillna(0).astype(int)
+    df["🔎"] = "https://www.google.com/search?q=" + df["Marca"] + "+" + df["Modelo"]
+    return df
 
-    fila = stock[stock["selector"] == opcion].iloc[0]
-    idx = stock[stock["selector"] == opcion].index[0]
+def guardar_datos(df):
+    sheet = conectar_sheets()
+    out = df.drop(columns=["🔎"], errors="ignore").astype(str)
+    sheet.clear()
+    sheet.update([out.columns.tolist()] + out.values.tolist())
+    st.cache_data.clear()
 
-    pv = st.number_input("Precio venta (€)", min_value=0.0, step=1.0)
+# =====================================================
+# SIDEBAR
+# =====================================================
+st.sidebar.image(LOGO_URL, width=100)
+st.sidebar.title("VINCHY ZAPAS")
 
-    if st.button("Confirmar venta"):
-        gan = calcular_ganancia("VENDIDO", fila["Precio Compra (€)"], pv)
+if st.sidebar.button("🏠 Inicio"):
+    st.session_state.seccion = "Inicio"
+if st.sidebar.button("➕ Nueva compra"):
+    st.session_state.seccion = "Nuevo"
+if st.sidebar.button("💸 Vender"):
+    st.session_state.seccion = "Vender"
+if st.sidebar.button("📋 Historial"):
+    st.session_state.seccion = "Historial"
+if st.sidebar.button("📊 Finanzas"):
+    st.session_state.seccion = "Finanzas"
 
-        df.at[idx, "Precio Venta (€)"] = float_a_texto(pv)
-        df.at[idx, "Ganancia Neta"] = float_a_texto(gan)
-        df.at[idx, "Estado"] = "VENDIDO"
+st.sidebar.divider()
+if st.sidebar.button("🔒 Cerrar sesión"):
+    st.session_state.autenticado = False
+    st.rerun()
 
-        sheet.update([df.columns.values.tolist()] + df.astype(str).values.tolist())
-        st.success("Venta registrada")
+df = cargar_datos()
 
-# ---------------- HISTORIAL ----------------
-elif menu == "Historial":
-    st.title("📜 Historial")
+# =====================================================
+# INICIO
+# =====================================================
+if st.session_state.seccion == "Inicio":
+    st.title("👟 Panel principal")
+    st.metric("En stock", len(df[df["Estado"]=="En Stock"]))
+    st.metric("Vendidas", len(df[df["Estado"]=="Vendido"]))
 
-    def icono_web(url):
-        if url:
-            return f'<a href="{url}" target="_blank">🔗</a>'
-        return ""
+# =====================================================
+# NUEVA COMPRA
+# =====================================================
+elif st.session_state.seccion == "Nuevo":
+    st.title("➕ Nueva compra")
+    with st.form("nueva"):
+        marca = st.text_input("Marca")
+        modelo = st.text_input("Modelo")
+        talla = st.text_input("Talla")
+        precio = st.text_input("Precio compra (€)")
+        if st.form_submit_button("Guardar"):
+            nid = 1 if df.empty else df["ID"].max() + 1
+            pc = texto_a_float(precio)
+            nuevo = {
+                "ID": nid,
+                "Marca": marca,
+                "Modelo": modelo,
+                "Talla": talla,
+                "Precio Compra": float_a_texto(pc),
+                "Precio Venta": "0,00",
+                "Ganancia Neta": float_a_texto(-pc),
+                "Estado": "En Stock",
+                "Fecha Compra": datetime.now().strftime("%d/%m/%Y"),
+                "Fecha Venta": ""
+            }
+            df = pd.concat([df, pd.DataFrame([nuevo])])
+            guardar_datos(df)
+            st.success("Compra guardada")
+            time.sleep(1)
+            st.rerun()
 
-    df_hist = df.copy()
-    df_hist["Web"] = df_hist["Web"].apply(icono_web)
+# =====================================================
+# VENDER
+# =====================================================
+elif st.session_state.seccion == "Vender":
+    st.title("💸 Vender zapatilla")
+    stock = df[df["Estado"]=="En Stock"]
+    opciones = stock.apply(
+        lambda x: f"ID {x['ID']} | {x['Modelo']} | Talla {x['Talla']}",
+        axis=1
+    ).tolist()
+    sel = st.selectbox("Selecciona", opciones)
+    if sel:
+        id_sel = int(sel.split("|")[0].replace("ID",""))
+        idx = df.index[df["ID"]==id_sel][0]
+        pv = st.text_input("Precio venta (€)")
+        if st.button("Confirmar venta"):
+            pvf = texto_a_float(pv)
+            pcf = texto_a_float(df.at[idx,"Precio Compra"])
+            gan = pvf - pcf
+            df.at[idx,"Precio Venta"] = float_a_texto(pvf)
+            df.at[idx,"Ganancia Neta"] = float_a_texto(gan)
+            df.at[idx,"Estado"] = "Vendido"
+            df.at[idx,"Fecha Venta"] = datetime.now().strftime("%d/%m/%Y")
+            guardar_datos(df)
+            st.success("Venta registrada")
+            st.balloons()
+            time.sleep(1)
+            st.rerun()
 
-    st.write(
-        df_hist.to_html(escape=False, index=False),
-        unsafe_allow_html=True
+# =====================================================
+# HISTORIAL
+# =====================================================
+elif st.session_state.seccion == "Historial":
+    st.title("📋 Historial")
+    df_edit = st.data_editor(
+        df,
+        column_config={
+            "🔎": st.column_config.LinkColumn("Web", display_text="🔎"),
+            "Estado": st.column_config.SelectboxColumn(
+                options=["En Stock","Vendido"]
+            )
+        },
+        hide_index=True,
+        use_container_width=True
     )
+    if st.button("💾 Guardar cambios"):
+        # recalcular ganancias
+        for i,row in df_edit.iterrows():
+            pc = texto_a_float(row["Precio Compra"])
+            pv = texto_a_float(row["Precio Venta"])
+            if row["Estado"]=="En Stock":
+                df_edit.at[i,"Ganancia Neta"] = float_a_texto(-pc)
+            else:
+                df_edit.at[i,"Ganancia Neta"] = float_a_texto(pv-pc)
+        guardar_datos(df_edit)
+        st.success("Cambios guardados")
+        time.sleep(1)
+        st.rerun()
+
+# =====================================================
+# FINANZAS
+# =====================================================
+elif st.session_state.seccion == "Finanzas":
+    st.title("📊 Finanzas")
+    calc = df.copy()
+    calc["Ganancia Neta"] = calc["Ganancia Neta"].apply(texto_a_float)
+    total = calc["Ganancia Neta"].sum()
+    st.metric("Resultado total", float_a_texto(total) + " €")
