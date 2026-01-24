@@ -4,7 +4,7 @@ from datetime import datetime
 import time
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import plotly.express as px # GRÁFICOS
+import plotly.express as px
 
 # ==========================================
 # 🔗 CONFIGURACIÓN
@@ -12,7 +12,7 @@ import plotly.express as px # GRÁFICOS
 LINK_APP = "https://vinchy-zapas.streamlit.app"
 LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
 
-st.set_page_config(page_title="Vinchy Zapas V73", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V74", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -23,13 +23,10 @@ st.markdown("""
     .stTextInput input, .stSelectbox div {
         color: #000000 !important; background-color: #F0F2F6 !important; border: 1px solid #ccc;
     }
-    /* BOTONES */
     div.stButton > button {
         background-color: #D32F2F; color: white; font-weight: bold; border: none; width: 100%; padding: 12px;
     }
-    /* ENLACES */
     a {color: #0000EE !important; font-weight: bold;}
-    /* MÉTRICAS */
     div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
 </style>
 """, unsafe_allow_html=True)
@@ -41,29 +38,38 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
     st.image(LOGO_URL, width=80)
-    with st.form("login_v73"):
+    with st.form("login_v74"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
             else: st.error("🚫 PIN Incorrecto")
     st.stop()
 
-# --- 🧠 LÓGICA DE TEXTO PURO ---
+# --- 🧠 LÓGICA DE TEXTO (Ajustada para evitar 3000) ---
 def texto_a_float(valor):
-    """Convierte '45,50' a 45.50 para calcular"""
+    """Convierte texto a número para calcular"""
     if pd.isna(valor) or str(valor).strip() == "": return 0.0
     try:
-        limpio = str(valor).replace("€", "").strip()
-        if "." in limpio and "," in limpio: limpio = limpio.replace(".", "")
+        # Quitamos € y puntos de miles
+        limpio = str(valor).replace("€", "").replace(".", "").strip()
+        # Coma a punto
         limpio = limpio.replace(",", ".")
         return float(limpio)
     except: return 0.0
 
 def float_a_texto(numero):
-    """Convierte 45.50 a '45,50' para mostrar"""
+    """
+    Convierte número a texto para guardar.
+    CAMBIO V74: Si es entero (30.0), guarda "30" sin decimales para no liar a Google.
+    Si tiene decimales (30.5), guarda "30,50".
+    """
     try:
-        return f"{float(numero):.2f}".replace(".", ",")
-    except: return "0,00"
+        val = float(numero)
+        if val.is_integer():
+            return f"{int(val)}" # Devuelve "30" a secas
+        else:
+            return f"{val:.2f}".replace(".", ",") # Devuelve "30,50"
+    except: return "0"
 
 def arreglar_talla(valor):
     v = str(valor).replace(".0", "").replace(",", ".").strip()
@@ -91,7 +97,7 @@ def cargar_datos_texto():
         for c in cols: 
             if c not in df.columns: df[c] = ""
         
-        # TODO STRING
+        # Todo a String para respetar lo que hay escrito
         df = df.astype(str).replace("nan", "")
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
         
@@ -162,15 +168,22 @@ elif st.session_state['seccion_actual'] == "Nuevo":
         ts = c3.selectbox("Tienda", ["-"] + list_t); tt = c3.text_input("¿Nueva?", key="ktt")
         tf = str(tt if tt else ts).strip().title()
         if tf == "-": tf = ""
-        ta = c4.text_input("Talla"); pr = c5.text_input("Precio Compra (€)", placeholder="45,50")
+        ta = c4.text_input("Talla"); pr = c5.text_input("Precio Compra (€)", placeholder="45")
         
         if st.form_submit_button("GUARDAR EN STOCK"):
             if not mod or not mf: st.error("Falta Marca/Modelo")
             else:
+                # Guardamos lo que escribes, limpiando comas por si acaso
                 p_float = texto_a_float(pr)
                 p_str = float_a_texto(p_float)
+                
                 nid = 1 if df.empty else df['ID'].max()+1
-                new = {"ID":nid, "Fecha Compra":datetime.now().strftime("%d/%m/%Y"), "Fecha Venta":"", "Marca":mf, "Modelo":mod, "Talla":arreglar_talla(ta), "Tienda Origen":tf, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":p_str, "Precio Venta":"0,00", "Estado":"En Stock", "Ganancia Neta":"0,00", "ROI %":"0,00", "Tracking":""}
+                new = {
+                    "ID":nid, "Fecha Compra":datetime.now().strftime("%d/%m/%Y"), "Fecha Venta":"", 
+                    "Marca":mf, "Modelo":mod, "Talla":arreglar_talla(ta), "Tienda Origen":tf, 
+                    "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":p_str, "Precio Venta":"0", 
+                    "Estado":"En Stock", "Ganancia Neta":"0", "ROI %":"0", "Tracking":""
+                }
                 new_df = pd.DataFrame([new]).astype(str)
                 df_final = pd.concat([df, new_df], ignore_index=True)
                 guardar_datos_texto(df_final)
@@ -191,7 +204,7 @@ elif st.session_state['seccion_actual'] == "Vender":
         c1.metric("Talla", row['Talla']); c2.metric("Tienda", row['Tienda Origen']); c3.metric("Coste", f"{row['Precio Compra']} €")
         st.divider()
         
-        pv_txt = st.text_input("Precio Venta (€)", placeholder="100,50")
+        pv_txt = st.text_input("Precio Venta (€)", placeholder="Ej: 60")
         pv_float = texto_a_float(pv_txt)
         pc_float = texto_a_float(row['Precio Compra'])
         gan = pv_float - pc_float
@@ -215,35 +228,49 @@ elif st.session_state['seccion_actual'] == "Vender":
 
 # --- HISTORIAL ---
 elif st.session_state['seccion_actual'] == "Historial":
-    st.title("📋 Historial (TEXTO)")
-    st.info("💡 Edita y pulsa 'GUARDAR CAMBIOS'. Lo que escribas se guardará TAL CUAL.")
+    st.title("📋 Historial (TOTALMENTE EDITABLE)")
+    st.info("💡 **Puedes editar TODO:** Precios, Ganancias, Nombres... Pulsa en la celda, corrige y dale a 'GUARDAR CAMBIOS'.")
     bus = st.text_input("🔍 Filtrar:", placeholder="Escribe...")
     df_v = df.copy()
     if bus: mask = df_v.astype(str).apply(lambda row: row.str.contains(bus, case=False).any(), axis=1); df_v = df_v[mask]
 
     cols_ord = ["ID", "🌐 Web", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", "Estado", "Tracking", "Fecha Compra", "Fecha Venta"]
+    
+    # CONFIGURACIÓN DATA EDITOR - AHORA TODO ES TEXTO EDITABLE
     col_cfg = {
         "ID": st.column_config.NumberColumn(disabled=True, width="small"),
         "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"),
         "Precio Compra": st.column_config.TextColumn(),
         "Precio Venta": st.column_config.TextColumn(),
-        "Ganancia Neta": st.column_config.TextColumn(disabled=True),
+        "Ganancia Neta": st.column_config.TextColumn(disabled=False), # DESBLOQUEADA LA GANANCIA
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, key="ev73")
+    
+    df_ed = st.data_editor(
+        df_v[[c for c in cols_ord if c in df_v.columns]], 
+        column_config=col_cfg, 
+        hide_index=True, 
+        use_container_width=True, 
+        key="ev74"
+    )
 
     if st.button("💾 GUARDAR CAMBIOS EN LA NUBE", type="primary"):
         for i, row in df_ed.iterrows():
             real_idx = df.index[df['ID'] == row['ID']].tolist()
             if real_idx:
                 idx = real_idx[0]
-                pc = texto_a_float(row['Precio Compra'])
-                pv = texto_a_float(row['Precio Venta'])
                 
-                for col in df.columns:
-                    if col in row: df.at[idx, col] = row[col]
+                # Actualizamos TODO lo que haya en la tabla tal cual
+                df.at[idx, 'Marca'] = row['Marca']
+                df.at[idx, 'Modelo'] = row['Modelo']
+                df.at[idx, 'Talla'] = row['Talla']
+                df.at[idx, 'Precio Compra'] = row['Precio Compra']
+                df.at[idx, 'Precio Venta'] = row['Precio Venta']
+                df.at[idx, 'Ganancia Neta'] = row['Ganancia Neta'] # Guarda lo que pongas tú o lo que estaba
+                df.at[idx, 'Estado'] = row['Estado']
                 
-                df.at[idx, 'Ganancia Neta'] = float_a_texto(pv - pc)
+                # Opcional: Si quieres que recalcule SOLO si la ganancia está vacía o es 0, podríamos hacerlo,
+                # pero ahora mismo confía en lo que tú escribas o en lo que viene de la venta.
 
         guardar_datos_texto(df)
         st.success("✅ Datos actualizados"); time.sleep(1); st.rerun()
@@ -251,6 +278,7 @@ elif st.session_state['seccion_actual'] == "Historial":
 # --- FINANZAS ---
 elif st.session_state['seccion_actual'] == "Finanzas":
     st.title("📊 Finanzas")
+    # Convertimos a float solo para gráficos
     df_calc = df.copy()
     for c in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
         df_calc[c] = df_calc[c].apply(texto_a_float)
@@ -270,10 +298,7 @@ elif st.session_state['seccion_actual'] == "Finanzas":
         m2.metric("Beneficio MES", float_a_texto(ben_mes) + " €")
         st.divider()
         if not ds.empty:
-            c1, c2 = st.columns(2)
-            with c1: 
-                fig = px.pie(ds, names='Marca', values='Ganancia Neta', title='Rentabilidad por Marca', hole=0.4)
-                st.plotly_chart(fig, use_container_width=True)
-            with c2:
-                fig2 = px.bar(ds.groupby('Plataforma Venta')['Ganancia Neta'].sum().reset_index(), x='Plataforma Venta', y='Ganancia Neta', title='Por Plataforma', color='Plataforma Venta')
-                st.plotly_chart(fig2, use_container_width=True)
+            fig = px.pie(ds, names='Marca', values='Ganancia Neta', title='Rentabilidad por Marca', hole=0.4)
+            st.plotly_chart(fig, use_container_width=True)
+            fig2 = px.bar(ds.groupby('Plataforma Venta')['Ganancia Neta'].sum().reset_index(), x='Plataforma Venta', y='Ganancia Neta', title='Por Plataforma', color='Plataforma Venta')
+            st.plotly_chart(fig2, use_container_width=True)
