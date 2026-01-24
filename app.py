@@ -4,6 +4,7 @@ from datetime import datetime
 import numpy as np
 import ssl
 import gspread
+import re
 from oauth2client.service_account import ServiceAccountCredentials
 import plotly.express as px
 
@@ -13,7 +14,7 @@ import plotly.express as px
 LINK_APP = "https://vinchy-zapas.streamlit.app"
 LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
 
-st.set_page_config(page_title="Vinchy Zapas V77", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V78", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -29,6 +30,7 @@ st.markdown("""
     }
     a {color: #0000EE !important; font-weight: bold;}
     div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
+    .version-text {font-size: 24px; font-weight: bold; color: #D32F2F; text-align: center; margin-bottom: 20px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -42,8 +44,9 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
+    st.markdown('<p class="version-text">VERSIÓN 78 (RAW FLOAT)</p>', unsafe_allow_html=True)
     st.image(LOGO_URL, width=80)
-    with st.form("login_v77"):
+    with st.form("login_v78"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
@@ -59,30 +62,38 @@ def obtener_libro_google():
         return client.open("inventario_zapatillas")
     except: return None
 
-# --- LÓGICA DE NÚMEROS (TRADUCCIÓN ESPAÑOL) ---
-def leer_numero(valor):
-    """Convierte lo que venga del Excel (30,50 o 30.50) a float (30.5)"""
+# --- 🧠 LÓGICA DE LIMPIEZA MATEMÁTICA ---
+def limpiar_a_numero_puro(valor):
+    """
+    Objetivo: Obtener un float limpio sin importar si entra texto o número.
+    NO DIVIDE NI MULTIPLICA. Solo limpia formato.
+    """
     if pd.isna(valor) or str(valor).strip() == "": return 0.0
+    
     try:
+        # Si ya es número, devolvemos float
+        if isinstance(valor, (int, float)):
+            return float(valor)
+        
+        # Limpieza de texto
+        # 1. Quitamos símbolo de moneda
         txt = str(valor).replace("€", "").strip()
-        # Si tiene punto de miles y coma decimal (1.200,50) -> Quitar punto, cambiar coma
+        
+        # 2. GESTIÓN DE PUNTOS Y COMAS
+        # Si hay puntos, asumimos que son miles y los borramos, EXCEPTO si es el único separador
+        # Ej: 1.200,50 -> Quitamos punto -> 1200,50 -> Cambiamos coma -> 1200.50
+        # Ej: 30.50 -> No quitamos punto -> 30.50
+        
         if "." in txt and "," in txt:
-            txt = txt.replace(".", "").replace(",", ".")
-        # Si solo tiene coma (30,50) -> Cambiar coma por punto
+            txt = txt.replace(".", "") # Quita miles
+            txt = txt.replace(",", ".") # Coma a decimal
         elif "," in txt:
-            txt = txt.replace(",", ".")
+            txt = txt.replace(",", ".") # Coma a decimal
+        # Si solo hay punto, Python lo entiende
+        
         return float(txt)
-    except: return 0.0
-
-def float_a_string_espanol(numero):
-    """
-    Convierte 30.5 -> "30,50" (Texto con coma)
-    ESTO ES LO QUE ARREGLA EL GUARDADO EN SHEETS
-    """
-    try:
-        if numero == 0: return "0,00"
-        return f"{float(numero):.2f}".replace(".", ",")
-    except: return "0,00"
+    except:
+        return 0.0
 
 def arreglar_talla(valor):
     v = str(valor).replace(".0", "").replace(",", ".").strip()
@@ -103,19 +114,14 @@ def cargar_datos_zapas():
         for c in cols: 
             if c not in df.columns: df[c] = ""
             
-        # LEER CONVERTIR A FLOAT
+        # LEER Y CONVERTIR A FLOAT PURO
         for c in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
-            df[c] = df[c].apply(leer_numero)
+            df[c] = df[c].apply(limpiar_a_numero_puro)
 
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
         df['Talla'] = df['Talla'].apply(arreglar_talla)
         df['Fecha Compra'] = pd.to_datetime(df['Fecha Compra'], dayfirst=True, errors='coerce')
         df['Fecha Venta'] = pd.to_datetime(df['Fecha Venta'], dayfirst=True, errors='coerce')
-        
-        # Recálculo de seguridad al leer
-        # Esto asegura que si el Excel está mal, la App lo vea bien
-        df['Ganancia Neta'] = df['Precio Venta'] - df['Precio Compra']
-        df.loc[df['Estado'] == 'En Stock', 'Ganancia Neta'] = 0.0
         
         df['🌐 Web'] = "https://www.google.com/search?q=" + df['Marca'].astype(str) + "+" + df['Modelo'].astype(str) + "+precio"
         return df
@@ -129,10 +135,11 @@ def guardar_datos_zapas(df):
         if '🌐 Web' in dfs.columns: dfs = dfs.drop(columns=['🌐 Web'])
         if 'T_Num' in dfs.columns: dfs = dfs.drop(columns=['T_Num'])
         
-        # AL GUARDAR: CONVERTIMOS A STRING CON COMA
-        # Google Sheets recibirá "30,50" (texto) y lo entenderá perfecto.
+        # AL GUARDAR: Enviamos FLOAT (Número).
+        # Google Sheets aplicará su propio formato.
+        # No enviamos texto para evitar confusiones.
         for col in ['Precio Compra', 'Precio Venta', 'Ganancia Neta']:
-            dfs[col] = dfs[col].apply(float_a_string_espanol)
+            dfs[col] = dfs[col].fillna(0.0).astype(float)
             
         dfs['Fecha Compra'] = pd.to_datetime(dfs['Fecha Compra']).dt.strftime('%d/%m/%Y').replace("NaT", "")
         dfs['Fecha Venta'] = pd.to_datetime(dfs['Fecha Venta']).dt.strftime('%d/%m/%Y').replace("NaT", "")
@@ -248,12 +255,12 @@ elif st.session_state['seccion_actual'] == "Nuevo":
         ts = c3.selectbox("Tienda", ["-"] + list_t); tt = c3.text_input("¿Nueva?", key="ktt")
         tf = str(tt if tt else ts).strip().title()
         if tf == "-": tf = ""
-        ta = c4.text_input("Talla"); pr = c5.text_input("Precio (€)", placeholder="45,50")
+        ta = c4.text_input("Talla"); pr = c5.text_input("Precio Compra (€)", placeholder="45,50")
         cant = st.number_input("📦 Cantidad", 1, 10, 1)
         if st.form_submit_button("GUARDAR EN STOCK"):
             if not mod or not mf: st.error("Falta Marca/Modelo")
             else:
-                p = leer_numero(pr); nid = 1 if df.empty else df['ID'].max()+1
+                p = limpiar_a_numero_puro(pr); nid = 1 if df.empty else df['ID'].max()+1
                 nuevas = []
                 for i in range(cant):
                     nuevas.append({"ID":nid+i, "Fecha Compra":datetime.now(), "Fecha Venta":pd.NaT, "Marca":mf, "Modelo":mod, "Talla":arreglar_talla(ta), "Tienda Origen":tf, "Plataforma Venta":"", "Cuenta Venta":"", "Precio Compra":p, "Precio Venta":0.0, "Estado":"En Stock", "Ganancia Neta":0.0, "ROI %":0.0, "Tracking":""})
@@ -271,10 +278,10 @@ elif st.session_state['seccion_actual'] == "Vender":
         row = df[df['ID']==ids].iloc[0]
         st.markdown(f"### {row['Marca']} {row['Modelo']}")
         c1, c2, c3 = st.columns(3)
-        c1.metric("Talla", row['Talla']); c2.metric("Tienda", row['Tienda Origen']); c3.metric("Coste", f"{row['Precio Compra']:.2f}€".replace(".", ","))
+        c1.metric("Talla", row['Talla']); c2.metric("Tienda", row['Tienda Origen']); c3.metric("Coste", f"{row['Precio Compra']:.2f} €")
         st.divider()
         pv_txt = st.text_input("Precio Venta (€)", placeholder="100,50")
-        pv = leer_numero(pv_txt); gan = pv - row['Precio Compra']
+        pv = limpiar_a_numero_puro(pv_txt); gan = pv - row['Precio Compra']
         if pv > 0: st.markdown(f"#### 💰 Ganancia: <span style='color:{'green' if gan>0 else 'red'}'>{gan:.2f} €</span>", unsafe_allow_html=True)
         with st.form("fv"):
             c3,c4 = st.columns(2); pl = c3.selectbox("Plataforma",["Vinted","Wallapop","StockX","En Persona","Otro"]); cu = c4.text_input("Cuenta")
@@ -287,6 +294,7 @@ elif st.session_state['seccion_actual'] == "Vender":
 # --- HISTORIAL ---
 elif st.session_state['seccion_actual'] == "Historial":
     st.title("📋 Historial")
+    st.info("💡 **Edición Total:** Los precios se guardan como NÚMEROS (Floats).")
     bus = st.text_input("🔍 Filtrar:", placeholder="Escribe...")
     cri = st.selectbox("🔃 Ordenar:", ["Fecha Compra (Reciente)", "Marca (A-Z)", "Precio (Bajo-Alto)", "Talla (Menor-Mayor)", "Talla (Mayor-Menor)"])
     df_v = df.copy()
@@ -304,20 +312,17 @@ elif st.session_state['seccion_actual'] == "Historial":
     col_cfg = {
         "ID": st.column_config.NumberColumn(disabled=True, width="small"),
         "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"),
-        # VISUALIZACIÓN: Usamos formato numérico estándar de la tabla
-        "Precio Compra": st.column_config.NumberColumn(format="%.2f €"),
-        "Precio Venta": st.column_config.NumberColumn(format="%.2f €"),
-        "Ganancia Neta": st.column_config.NumberColumn(format="%.2f €", disabled=True),
+        # PRECIO NUMÉRICO ESTÁNDAR
+        "Precio Compra": st.column_config.NumberColumn(format="%.2f"),
+        "Precio Venta": st.column_config.NumberColumn(format="%.2f"),
+        "Ganancia Neta": st.column_config.NumberColumn(format="%.2f", disabled=True),
         "Fecha Compra": st.column_config.DateColumn(format="DD/MM/YYYY"),
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
-    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev77")
+    df_ed = st.data_editor(df_v[[c for c in cols_ord if c in df_v.columns]], column_config=col_cfg, hide_index=True, use_container_width=True, num_rows="dynamic", key="ev78")
     if not df.equals(df_ed):
         df_ag = df_ed.drop(columns=['🌐 Web', 'T_Num'], errors='ignore')
-        # RECÁLCULO FORZOSO
         df_ag['Ganancia Neta'] = df_ag['Precio Venta'] - df_ag['Precio Compra']
-        df_ag.loc[df_ag['Estado'] == 'En Stock', 'Ganancia Neta'] = 0.0
-        
         df_ag['Talla'] = df_ag['Talla'].apply(arreglar_talla)
         df.update(df_ag); guardar_datos_zapas(df); st.toast("✅ Guardado")
 
@@ -329,6 +334,7 @@ elif st.session_state['seccion_actual'] == "Finanzas":
     c1.download_button("📥 Stock CSV", df_x[df_x['Estado']=='En Stock'].to_csv(index=False).encode('utf-8-sig'), "stock.csv", "text/csv")
     c2.download_button("💰 Ventas CSV", df_x[df_x['Estado']=='Vendido'].to_csv(index=False).encode('utf-8-sig'), "ventas.csv", "text/csv")
     st.divider()
+
     if not df.empty:
         hoy = datetime.now()
         ds = df[df['Estado']=='Vendido']; dk = df[df['Estado']=='En Stock']
@@ -346,7 +352,6 @@ elif st.session_state['seccion_actual'] == "Finanzas":
         g1.metric("Total", f"{ds['Ganancia Neta'].sum():.2f} €".replace(".", ","))
         g2.metric("Stock", f"{dk['Precio Compra'].sum():.2f} €".replace(".", ","))
         g3.metric("Pares", len(dk)); g4.metric("Vendidos", len(ds))
-        
         st.divider()
         if not ds.empty:
             c_g1, c_g2 = st.columns(2)
