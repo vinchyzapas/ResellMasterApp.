@@ -7,41 +7,35 @@ from oauth2client.service_account import ServiceAccountCredentials
 import plotly.express as px
 
 # ==========================================
-# ⚙️ CONFIGURACIÓN
+# CONFIG
 # ==========================================
 LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
 
-st.set_page_config(
-    page_title="Vinchy Zapas",
-    layout="wide",
-    page_icon="👟"
-)
+st.set_page_config(page_title="Vinchy Zapas", layout="wide", page_icon="👟")
 
 # ==========================================
-# 🎨 ESTILO
+# ESTILO
 # ==========================================
 st.markdown("""
 <style>
-.stApp {background-color: #FFFFFF;}
-section[data-testid="stSidebar"] {background-color: #0F172A;}
-section[data-testid="stSidebar"] * {color: #FFFFFF !important;}
+.stApp {background-color:#FFFFFF;}
+section[data-testid="stSidebar"] {background-color:#0F172A;}
+section[data-testid="stSidebar"] * {color:white !important;}
 div.stButton > button {
-    background-color: #2563EB;
-    color: white;
-    font-weight: bold;
-    border-radius: 8px;
-    padding: 10px;
-    border: none;
+    background:#2563EB;
+    color:white;
+    font-weight:bold;
+    border-radius:8px;
 }
 div[data-testid="stMetricValue"] {
-    font-size: 24px;
-    color: #15803D;
+    font-size:24px;
+    color:#15803D;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 🔐 LOGIN
+# LOGIN
 # ==========================================
 if "auth" not in st.session_state:
     st.session_state.auth = False
@@ -50,7 +44,7 @@ if "sec" not in st.session_state:
 
 if not st.session_state.auth:
     st.title("🔒 Acceso Vinchy Zapas")
-    st.image(LOGO_URL, width=90)
+    st.image(LOGO_URL, width=80)
     with st.form("login"):
         pin = st.text_input("PIN", type="password")
         if st.form_submit_button("ENTRAR"):
@@ -62,16 +56,16 @@ if not st.session_state.auth:
     st.stop()
 
 # ==========================================
-# 🧠 FUNCIONES CLAVE
+# FUNCIONES
 # ==========================================
 def texto_a_float(valor):
     if valor is None:
         return 0.0
     try:
         limpio = str(valor).replace("€", "").strip()
-        if "." in limpio and "," in limpio:
+        if "," in limpio:
             limpio = limpio.replace(".", "")
-        limpio = limpio.replace(",", ".")
+            limpio = limpio.replace(",", ".")
         return float(limpio)
     except:
         return 0.0
@@ -90,8 +84,7 @@ def conectar_sheets():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
         dict(st.secrets["gcp_service_account"]), scope
     )
-    client = gspread.authorize(creds)
-    return client.open("inventario_zapatillas").sheet1
+    return gspread.authorize(creds).open("inventario_zapatillas").sheet1
 
 @st.cache_data(ttl=0)
 def cargar():
@@ -115,30 +108,29 @@ def guardar(df):
 df = cargar()
 
 # ==========================================
-# 📚 SIDEBAR
+# SIDEBAR
 # ==========================================
 st.sidebar.image(LOGO_URL, width=100)
 st.sidebar.title("VINCHY ZAPAS")
 
-if st.sidebar.button("🏠 Inicio"): st.session_state.sec = "Inicio"; st.rerun()
-if st.sidebar.button("➕ Nueva compra"): st.session_state.sec = "Nuevo"; st.rerun()
-if st.sidebar.button("💸 Vender"): st.session_state.sec = "Vender"; st.rerun()
-if st.sidebar.button("📋 Historial"): st.session_state.sec = "Historial"; st.rerun()
-if st.sidebar.button("📊 Finanzas"): st.session_state.sec = "Finanzas"; st.rerun()
+for name in ["Inicio","Nuevo","Vender","Historial","Finanzas"]:
+    if st.sidebar.button(name):
+        st.session_state.sec = name
+        st.rerun()
+
 st.sidebar.divider()
-if st.sidebar.button("🔒 Cerrar sesión"):
+if st.sidebar.button("Cerrar sesión"):
     st.session_state.auth = False
     st.rerun()
 
 # ==========================================
-# 🏠 INICIO
+# INICIO
 # ==========================================
 if st.session_state.sec == "Inicio":
-    st.title("👟 Panel de Control")
-    st.markdown("Gestión de stock y beneficios")
+    st.title("👟 Panel de control")
 
 # ==========================================
-# ➕ NUEVA COMPRA
+# NUEVO
 # ==========================================
 elif st.session_state.sec == "Nuevo":
     st.title("➕ Nueva compra")
@@ -146,19 +138,20 @@ elif st.session_state.sec == "Nuevo":
         marca = st.text_input("Marca")
         modelo = st.text_input("Modelo")
         talla = st.text_input("Talla")
-        tienda = st.text_input("Tienda origen")
-        precio = st.text_input("Precio compra (€)")
+        tienda = st.text_input("Tienda")
+        pc = st.text_input("Precio compra")
         if st.form_submit_button("Guardar"):
             nid = int(df["ID"].max()) + 1 if not df.empty else 1
+            pc_f = texto_a_float(pc)
             new = {
                 "ID": nid,
                 "Marca": marca,
                 "Modelo": modelo,
                 "Talla": talla,
                 "Tienda Origen": tienda,
-                "Precio Compra": precio,
+                "Precio Compra": float_a_texto(pc_f),
                 "Precio Venta": "0,00",
-                "Ganancia Neta": "0,00",
+                "Ganancia Neta": float_a_texto(-pc_f),
                 "ROI %": "0,00",
                 "Estado": "En Stock",
                 "Fecha Compra": datetime.now().strftime("%d/%m/%Y"),
@@ -173,19 +166,19 @@ elif st.session_state.sec == "Nuevo":
             st.rerun()
 
 # ==========================================
-# 💸 VENDER
+# VENDER
 # ==========================================
 elif st.session_state.sec == "Vender":
     st.title("💸 Vender")
     stock = df[df["Estado"] == "En Stock"]
     sel = st.selectbox(
-        "Selecciona zapatilla",
+        "Zapatilla",
         ["-"] + stock.apply(lambda x: f"{x.ID} | {x.Marca} {x.Modelo}", axis=1).tolist()
     )
     if sel != "-":
         sid = int(sel.split("|")[0])
         idx = df.index[df["ID"] == sid][0]
-        pv = st.text_input("Precio venta (€)")
+        pv = st.text_input("Precio venta")
         if st.button("Confirmar venta"):
             pc = texto_a_float(df.at[idx, "Precio Compra"])
             pvf = texto_a_float(pv)
@@ -199,39 +192,32 @@ elif st.session_state.sec == "Vender":
             df.at[idx, "Fecha Venta"] = datetime.now().strftime("%d/%m/%Y")
 
             guardar(df)
-            st.success(f"Vendido +{gan:.2f} €")
-            st.balloons()
+            st.success(f"Resultado: {gan:.2f} €")
             time.sleep(1)
             st.rerun()
 
 # ==========================================
-# 📋 HISTORIAL
+# HISTORIAL
 # ==========================================
 elif st.session_state.sec == "Historial":
     st.title("📋 Historial")
 
-    filtro = st.radio("Mostrar:", ["Todos", "En Stock", "Vendidos"], horizontal=True)
     dfh = df.copy()
-    if filtro == "En Stock":
-        dfh = dfh[dfh["Estado"] == "En Stock"]
-    elif filtro == "Vendidos":
-        dfh = dfh[dfh["Estado"] == "Vendido"]
 
     columnas = [
-        "ID", "🌐 Web", "Marca", "Modelo", "Talla",
-        "Precio Compra", "Precio Venta", "Ganancia Neta",
-        "Estado", "Fecha Compra", "Fecha Venta"
+        "ID","🌐 Web","Marca","Modelo","Talla",
+        "Precio Compra","Precio Venta","Ganancia Neta",
+        "Estado","Fecha Compra","Fecha Venta"
     ]
 
     config = {
-        "ID": st.column_config.NumberColumn(disabled=True),
         "🌐 Web": st.column_config.LinkColumn(
             label="Foto",
             display_text="🔎"
         ),
         "Ganancia Neta": st.column_config.TextColumn(disabled=True),
         "Estado": st.column_config.SelectboxColumn(
-            options=["En Stock", "Vendido"]
+            options=["En Stock","Vendido"]
         )
     }
 
@@ -242,13 +228,18 @@ elif st.session_state.sec == "Historial":
         use_container_width=True
     )
 
-    if st.button("💾 Guardar cambios"):
+    if st.button("Guardar cambios"):
         for _, r in edit.iterrows():
             idx = df.index[df["ID"] == r["ID"]][0]
             pc = texto_a_float(r["Precio Compra"])
             pv = texto_a_float(r["Precio Venta"])
-            gan = pv - pc
-            roi = (gan / pc * 100) if pc > 0 else 0
+
+            if r["Estado"] == "En Stock":
+                gan = -pc
+                roi = 0
+            else:
+                gan = pv - pc
+                roi = (gan / pc * 100) if pc > 0 else 0
 
             for col in edit.columns:
                 if col != "🌐 Web":
@@ -258,27 +249,27 @@ elif st.session_state.sec == "Historial":
             df.at[idx, "ROI %"] = float_a_texto(roi)
 
         guardar(df)
-        st.success("Cambios guardados")
+        st.success("Historial actualizado")
         time.sleep(1)
         st.rerun()
 
 # ==========================================
-# 📊 FINANZAS
+# FINANZAS
 # ==========================================
 elif st.session_state.sec == "Finanzas":
     st.title("📊 Finanzas")
 
     dff = df.copy()
-    for c in ["Precio Compra", "Precio Venta", "Ganancia Neta", "ROI %"]:
+    for c in ["Precio Compra","Precio Venta","Ganancia Neta","ROI %"]:
         dff[c] = dff[c].apply(texto_a_float)
 
     vendidos = dff[dff["Estado"] == "Vendido"]
     stock = dff[dff["Estado"] == "En Stock"]
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Beneficio total", float_a_texto(vendidos["Ganancia Neta"].sum()) + " €")
-    c2.metric("Dinero en stock", float_a_texto(stock["Precio Compra"].sum()) + " €")
-    c3.metric("ROI medio", float_a_texto(vendidos["ROI %"].mean()) + " %")
+    c1,c2,c3 = st.columns(3)
+    c1.metric("Beneficio total", float_a_texto(vendidos["Ganancia Neta"].sum())+" €")
+    c2.metric("Dinero en stock", float_a_texto(stock["Precio Compra"].sum())+" €")
+    c3.metric("ROI medio", float_a_texto(vendidos["ROI %"].mean())+" %")
 
     if not vendidos.empty:
         fig = px.pie(vendidos, names="Marca", values="Ganancia Neta", hole=0.4)
