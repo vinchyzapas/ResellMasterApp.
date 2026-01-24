@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import time
+import numpy as np
+import ssl
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import plotly.express as px
@@ -12,7 +13,7 @@ import plotly.express as px
 LINK_APP = "https://vinchy-zapas.streamlit.app"
 LOGO_URL = "https://cdn-icons-png.flaticon.com/512/2589/2589903.png"
 
-st.set_page_config(page_title="Vinchy Zapas V74", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Vinchy Zapas V75", layout="wide", page_icon="👟")
 
 # --- 🎨 ESTILO VISUAL ---
 st.markdown("""
@@ -28,8 +29,13 @@ st.markdown("""
     }
     a {color: #0000EE !important; font-weight: bold;}
     div[data-testid="stMetricValue"] {font-size: 22px !important; color: #2E7D32 !important;}
+    .version-text {font-size: 24px; font-weight: bold; color: #D32F2F; text-align: center; margin-bottom: 20px;}
 </style>
 """, unsafe_allow_html=True)
+
+# --- LISTAS ---
+BASES_MARCAS = ["Adidas", "Nike", "Hoka", "Salomon", "Calvin Klein", "Asics", "New Balance", "Merrell"]
+BASES_TIENDAS = ["Asos", "Asphaltgold", "Privalia", "Amazon", "Sneakersnuff", "Footlocker", "Zalando", "Vinted"]
 
 # --- LOGIN ---
 if 'autenticado' not in st.session_state: st.session_state['autenticado'] = False
@@ -37,15 +43,25 @@ if 'seccion_actual' not in st.session_state: st.session_state['seccion_actual'] 
 
 if not st.session_state['autenticado']:
     st.title("🔒 Acceso Vinchy Zapas")
+    st.markdown('<p class="version-text">VERSIÓN 75</p>', unsafe_allow_html=True)
     st.image(LOGO_URL, width=80)
-    with st.form("login_v74"):
+    with st.form("login_v75"):
         pin = st.text_input("PIN:", type="password")
         if st.form_submit_button("ENTRAR AL SISTEMA"):
             if pin == "1234": st.session_state['autenticado'] = True; st.rerun()
             else: st.error("🚫 PIN Incorrecto")
     st.stop()
 
-# --- 🧠 LÓGICA DE TEXTO (Ajustada para evitar 3000) ---
+# --- CONEXIÓN ---
+def obtener_libro_google():
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
+        client = gspread.authorize(creds)
+        return client.open("inventario_zapatillas")
+    except: return None
+
+# --- LÓGICA DE TEXTO (PARA QUE NO HAYA ERRORES DE 0) ---
 def texto_a_float(valor):
     """Convierte texto a número para calcular"""
     if pd.isna(valor) or str(valor).strip() == "": return 0.0
@@ -58,17 +74,13 @@ def texto_a_float(valor):
     except: return 0.0
 
 def float_a_texto(numero):
-    """
-    Convierte número a texto para guardar.
-    CAMBIO V74: Si es entero (30.0), guarda "30" sin decimales para no liar a Google.
-    Si tiene decimales (30.5), guarda "30,50".
-    """
+    """Convierte número a texto para guardar/mostrar"""
     try:
         val = float(numero)
         if val.is_integer():
-            return f"{int(val)}" # Devuelve "30" a secas
+            return f"{int(val)}" # "30"
         else:
-            return f"{val:.2f}".replace(".", ",") # Devuelve "30,50"
+            return f"{val:.2f}".replace(".", ",") # "30,50"
     except: return "0"
 
 def arreglar_talla(valor):
@@ -76,21 +88,13 @@ def arreglar_talla(valor):
     if v == "nan": return ""
     return v
 
-# --- 🧱 ALMACENAMIENTO ---
-def conectar_sheets():
-    try:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
-        client = gspread.authorize(creds)
-        return client.open("inventario_zapatillas").sheet1
-    except: return None
-
+# --- CARGAR DATOS ---
 @st.cache_data(ttl=0, show_spinner=False)
 def cargar_datos_texto():
-    sheet = conectar_sheets()
+    sheet = obtener_libro_google()
     if not sheet: return pd.DataFrame()
     try:
-        data = sheet.get_all_records()
+        data = sheet.sheet1.get_all_records()
         df = pd.DataFrame(data)
         cols = ["ID", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", 
                 "Estado", "Tienda Origen", "Plataforma Venta", "Cuenta Venta", "Fecha Compra", "Fecha Venta", "ROI %", "Tracking"]
@@ -107,18 +111,41 @@ def cargar_datos_texto():
     except: return pd.DataFrame()
 
 def guardar_datos_texto(df):
-    sheet = conectar_sheets()
+    sheet = obtener_libro_google()
     if sheet:
         dfs = df.copy()
         if '🌐 Web' in dfs.columns: dfs = dfs.drop(columns=['🌐 Web'])
         dfs = dfs.astype(str).replace("nan", "")
-        sheet.clear()
-        sheet.update([dfs.columns.values.tolist()] + dfs.values.tolist())
+        sheet.sheet1.clear()
+        sheet.sheet1.update([dfs.columns.values.tolist()] + dfs.values.tolist())
         st.cache_data.clear()
 
+def cargar_trackings():
+    libro = obtener_libro_google()
+    if not libro: return pd.DataFrame(columns=["Alias", "Tracking", "Fecha"])
+    try: sheet = libro.worksheet("trackings")
+    except: 
+        sheet = libro.add_worksheet(title="trackings", rows=100, cols=3)
+        sheet.append_row(["Alias", "Tracking", "Fecha"])
+    return pd.DataFrame(sheet.get_all_records())
+
+def guardar_tracking_nuevo(alias, codigo):
+    libro = obtener_libro_google()
+    if libro:
+        try: sheet = libro.worksheet("trackings")
+        except: sheet = libro.add_worksheet("trackings", 100, 3)
+        sheet.append_row([alias, codigo, datetime.now().strftime("%d/%m/%Y")])
+
+def borrar_tracking(codigo):
+    libro = obtener_libro_google()
+    if libro:
+        sheet = libro.worksheet("trackings")
+        df = pd.DataFrame(sheet.get_all_records())
+        df_new = df[df['Tracking'].astype(str) != str(codigo)]
+        sheet.clear()
+        sheet.update([df_new.columns.values.tolist()] + df_new.values.tolist())
+
 def obtener_listas(df):
-    BASES_MARCAS = ["Adidas", "Nike", "Hoka", "Salomon", "Calvin Klein", "Asics", "New Balance", "Merrell"]
-    BASES_TIENDAS = ["Asos", "Asphaltgold", "Privalia", "Amazon", "Sneakersnuff", "Footlocker", "Zalando", "Vinted"]
     m = df['Marca'].unique().tolist() if not df.empty else []
     t = df['Tienda Origen'].unique().tolist() if not df.empty else []
     return sorted(list(set(BASES_MARCAS + m))), sorted(list(set(BASES_TIENDAS + t)))
@@ -150,6 +177,8 @@ if st.session_state['seccion_actual'] == "Inicio":
         if st.button("➕ NUEVA COMPRA", use_container_width=True): st.session_state['seccion_actual'] = "Nuevo"; st.rerun()
         st.write("")
         if st.button("📋 HISTORIAL", use_container_width=True): st.session_state['seccion_actual'] = "Historial"; st.rerun()
+        st.write("")
+        if st.button("🚚 ENVÍOS", use_container_width=True): st.session_state['seccion_actual'] = "Trackings"; st.rerun()
     with c2:
         if st.button("💸 VENDER", use_container_width=True): st.session_state['seccion_actual'] = "Vender"; st.rerun()
         st.write("")
@@ -173,10 +202,8 @@ elif st.session_state['seccion_actual'] == "Nuevo":
         if st.form_submit_button("GUARDAR EN STOCK"):
             if not mod or not mf: st.error("Falta Marca/Modelo")
             else:
-                # Guardamos lo que escribes, limpiando comas por si acaso
                 p_float = texto_a_float(pr)
                 p_str = float_a_texto(p_float)
-                
                 nid = 1 if df.empty else df['ID'].max()+1
                 new = {
                     "ID":nid, "Fecha Compra":datetime.now().strftime("%d/%m/%Y"), "Fecha Venta":"", 
@@ -228,21 +255,21 @@ elif st.session_state['seccion_actual'] == "Vender":
 
 # --- HISTORIAL ---
 elif st.session_state['seccion_actual'] == "Historial":
-    st.title("📋 Historial (TOTALMENTE EDITABLE)")
-    st.info("💡 **Puedes editar TODO:** Precios, Ganancias, Nombres... Pulsa en la celda, corrige y dale a 'GUARDAR CAMBIOS'.")
+    st.title("📋 Historial (EDITABLE)")
+    st.info("💡 **Puedes editar TODO:** Precios, Ganancias... Pulsa en la celda y modifica. El programa NO tocará tus correcciones.")
     bus = st.text_input("🔍 Filtrar:", placeholder="Escribe...")
     df_v = df.copy()
     if bus: mask = df_v.astype(str).apply(lambda row: row.str.contains(bus, case=False).any(), axis=1); df_v = df_v[mask]
 
     cols_ord = ["ID", "🌐 Web", "Marca", "Modelo", "Talla", "Precio Compra", "Precio Venta", "Ganancia Neta", "Estado", "Tracking", "Fecha Compra", "Fecha Venta"]
     
-    # CONFIGURACIÓN DATA EDITOR - AHORA TODO ES TEXTO EDITABLE
     col_cfg = {
         "ID": st.column_config.NumberColumn(disabled=True, width="small"),
         "🌐 Web": st.column_config.LinkColumn(display_text="🔎 Buscar"),
+        # MODO TEXTO: Control total para ti
         "Precio Compra": st.column_config.TextColumn(),
         "Precio Venta": st.column_config.TextColumn(),
-        "Ganancia Neta": st.column_config.TextColumn(disabled=False), # DESBLOQUEADA LA GANANCIA
+        "Ganancia Neta": st.column_config.TextColumn(), # AHORA ES EDITABLE
         "Estado": st.column_config.SelectboxColumn(options=["En Stock", "Vendido"])
     }
     
@@ -251,7 +278,7 @@ elif st.session_state['seccion_actual'] == "Historial":
         column_config=col_cfg, 
         hide_index=True, 
         use_container_width=True, 
-        key="ev74"
+        key="ev75"
     )
 
     if st.button("💾 GUARDAR CAMBIOS EN LA NUBE", type="primary"):
@@ -259,21 +286,38 @@ elif st.session_state['seccion_actual'] == "Historial":
             real_idx = df.index[df['ID'] == row['ID']].tolist()
             if real_idx:
                 idx = real_idx[0]
-                
-                # Actualizamos TODO lo que haya en la tabla tal cual
-                df.at[idx, 'Marca'] = row['Marca']
-                df.at[idx, 'Modelo'] = row['Modelo']
-                df.at[idx, 'Talla'] = row['Talla']
-                df.at[idx, 'Precio Compra'] = row['Precio Compra']
-                df.at[idx, 'Precio Venta'] = row['Precio Venta']
-                df.at[idx, 'Ganancia Neta'] = row['Ganancia Neta'] # Guarda lo que pongas tú o lo que estaba
-                df.at[idx, 'Estado'] = row['Estado']
-                
-                # Opcional: Si quieres que recalcule SOLO si la ganancia está vacía o es 0, podríamos hacerlo,
-                # pero ahora mismo confía en lo que tú escribas o en lo que viene de la venta.
+                # Guardamos EXACTAMENTE lo que hay en la pantalla, sin calcular nada
+                for col in df.columns:
+                    if col in row: df.at[idx, col] = row[col]
 
         guardar_datos_texto(df)
         st.success("✅ Datos actualizados"); time.sleep(1); st.rerun()
+
+# --- TRACKINGS ---
+elif st.session_state['seccion_actual'] == "Trackings":
+    st.title("🚚 Paquetes en Camino")
+    if "t_alias" not in st.session_state: st.session_state.t_alias = ""
+    if "t_code" not in st.session_state: st.session_state.t_code = ""
+    with st.form("form_track"):
+        c1, c2 = st.columns(2)
+        alias = c1.text_input("Alias / Tienda", key="t_alias", placeholder="Ej: Pedido Nike")
+        track_num = c2.text_input("Nº Seguimiento", key="t_code")
+        if st.form_submit_button("AÑADIR SEGUIMIENTO"):
+            if alias and track_num:
+                guardar_tracking_nuevo(alias, track_num)
+                st.session_state.t_alias = ""; st.session_state.t_code = ""; st.toast("✅ Guardado"); st.rerun()
+            else: st.error("Faltan datos")
+    st.divider()
+    df_t = cargar_trackings()
+    if not df_t.empty:
+        for i, r in df_t.iterrows():
+            with st.container():
+                c1, c2, c3 = st.columns([2, 1, 1])
+                c1.markdown(f"**{r['Alias']}**"); c1.caption(f"{r['Tracking']}")
+                c2.link_button("🔎 RASTREAR", f"https://t.17track.net/es#nums={r['Tracking']}")
+                if c3.button("🗑️", key=f"d_{i}"): borrar_tracking(r['Tracking']); st.rerun()
+                st.divider()
+    else: st.info("No hay paquetes pendientes.")
 
 # --- FINANZAS ---
 elif st.session_state['seccion_actual'] == "Finanzas":
@@ -293,12 +337,27 @@ elif st.session_state['seccion_actual'] == "Finanzas":
         m1, m2 = st.columns(2)
         ben = ds['Ganancia Neta'].sum()
         ben_mes = ds[mm_v]['Ganancia Neta'].sum()
-        
         m1.metric("Beneficio TOTAL", float_a_texto(ben) + " €")
         m2.metric("Beneficio MES", float_a_texto(ben_mes) + " €")
+        
+        st.divider()
+        
+        # --- NUEVAS MÉTRICAS SOLICITADAS ---
+        g1, g2 = st.columns(2)
+        # Suma de Precio Compra de TODAS las zapatillas (Vendidas + Stock)
+        gasto_total = df_calc['Precio Compra'].sum()
+        # Suma de Precio Venta de las VENDIDAS
+        ingreso_total = ds['Precio Venta'].sum()
+        
+        g1.metric("Total Gastado (Compras)", float_a_texto(gasto_total) + " €")
+        g2.metric("Total Ingresado (Ventas)", float_a_texto(ingreso_total) + " €")
+        
         st.divider()
         if not ds.empty:
-            fig = px.pie(ds, names='Marca', values='Ganancia Neta', title='Rentabilidad por Marca', hole=0.4)
-            st.plotly_chart(fig, use_container_width=True)
-            fig2 = px.bar(ds.groupby('Plataforma Venta')['Ganancia Neta'].sum().reset_index(), x='Plataforma Venta', y='Ganancia Neta', title='Por Plataforma', color='Plataforma Venta')
-            st.plotly_chart(fig2, use_container_width=True)
+            c1, c2 = st.columns(2)
+            with c1: 
+                fig = px.pie(ds, names='Marca', values='Ganancia Neta', title='Rentabilidad por Marca', hole=0.4)
+                st.plotly_chart(fig, use_container_width=True)
+            with c2:
+                fig2 = px.bar(ds.groupby('Plataforma Venta')['Ganancia Neta'].sum().reset_index(), x='Plataforma Venta', y='Ganancia Neta', title='Por Plataforma', color='Plataforma Venta')
+                st.plotly_chart(fig2, use_container_width=True)
